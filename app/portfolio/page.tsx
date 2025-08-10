@@ -17,22 +17,21 @@ export default function PortfolioPage() {
         return;
       }
       try {
-        // Get all invoices to filter user's activities
         const allInvoices = await Api.listInvoices();
         const userInvoices = allInvoices.filter((inv: any) => 
-          inv.sellerId === accountId || inv.buyerId === accountId || inv.attesterId === accountId
+          inv.sellerId === accountId ||
+          inv.ftId || // any invoice with tokenization (investable)
+          inv.fundedPct > 0 ||
+          inv.status === 'FUNDED' || inv.status === 'PAID'
         );
         setInvoices(userInvoices);
 
-        // Get events related to user's invoices
         const allEvents = await Api.listEvents(new URLSearchParams());
         const userEvents = allEvents.filter((e: any) => 
           userInvoices.find((inv: any) => inv.id === e.invoiceId) ||
-          e.payload?.investorId === accountId ||
-          e.payload?.buyerId === accountId ||
-          e.payload?.attesterId === accountId
+          e.payload?.investorId === accountId
         );
-        setEvents(userEvents.slice(0, 10)); // Latest 10 events
+        setEvents(userEvents.slice(0, 10));
       } catch (e) {
         console.warn('Portfolio data fetch failed:', e);
       } finally {
@@ -79,10 +78,9 @@ export default function PortfolioPage() {
                       <div className="font-medium">{inv.currency} {inv.amount}</div>
                       <div className="text-xs px-2 py-1 rounded bg-white/10">{inv.status}</div>
                     </div>
-                    <div className="text-xs text-white/60">
-                      {inv.sellerId === accountId && <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-300">Seller</span>}
-                      {inv.buyerId === accountId && <span className="px-2 py-1 rounded bg-green-500/20 text-green-300">Buyer</span>}
-                      {inv.attesterId === accountId && <span className="px-2 py-1 rounded bg-purple-500/20 text-purple-300">Attester</span>}
+                    <div className="text-xs text-white/60 flex gap-2">
+                      {inv.sellerId === accountId && <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-300">Exporter</span>}
+                      {inv.fundedPct > 0 && <span className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300">Invested {inv.fundedPct}%</span>}
                     </div>
                   </Link>
                 ))}
@@ -130,14 +128,6 @@ export default function PortfolioPage() {
               <Link href="/marketplace" className="border border-white/10 rounded p-3 hover:border-emerald-500/40 text-center">
                 <div className="text-sm font-medium">Browse Market</div>
                 <div className="text-xs text-white/60">Find investments</div>
-              </Link>
-              <Link href="/buyer-ack" className="border border-white/10 rounded p-3 hover:border-emerald-500/40 text-center">
-                <div className="text-sm font-medium">Buyer ACK</div>
-                <div className="text-xs text-white/60">Acknowledge payment</div>
-              </Link>
-              <Link href="/attester" className="border border-white/10 rounded p-3 hover:border-emerald-500/40 text-center">
-                <div className="text-sm font-medium">Attest</div>
-                <div className="text-xs text-white/60">Sign verification</div>
               </Link>
             </div>
           </section>

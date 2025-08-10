@@ -27,12 +27,12 @@ invoicesRouter.get('/:id', (req, res) => {
 
 // Create invoice
 invoicesRouter.post('/', async (req, res) => {
-  const { sellerId, buyerId, dueDate, amount, currency } = req.body as Partial<Invoice>;
+  const { sellerId, buyerId, dueDate, amount, currency, yieldBps } = req.body as Partial<Invoice> & { yieldBps?: number };
   if (!sellerId || !dueDate || !amount || !currency) {
     return res.status(400).json(err('sellerId, dueDate, amount, currency required'));
   }
-  const inv = db.invoice.create({ sellerId, buyerId, dueDate, amount, currency });
-  db.event.publish(EventType.INVOICE_CREATED, { invoiceId: inv.id, amount, currency });
+  const inv = db.invoice.create({ sellerId, buyerId, dueDate, amount, currency, yieldBps });
+  db.event.publish(EventType.INVOICE_CREATED, { invoiceId: inv.id, amount, currency, buyerId, yieldBps });
 
   // Hedera-native side effects (best-effort)
   try {
@@ -119,18 +119,60 @@ invoicesRouter.post('/:id/invest', async (req, res) => {
   const inv = db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   const invst = db.investment.create({ invoiceId: id, investorId, amount });
-  db.event.publish(EventType.INVESTMENT_MADE, { invoiceId: id, investmentId: invst.id, amount }, id);
+  db.event.publish(EventType.INVESTMENT_MADE, { invoiceId: id, investmentId: invst.id, amount, investorId }, id);
+
+  // Update funding progress and status
+  const allInvestments = db.investment.list(id);
+  const total = allInvestments.reduce((s, it) => s + (it.amount || 0), 0);
+  const fundedPct = Math.min(100, Math.round((total / (inv.amount || 1)) * 100));
+  let newStatus: InvoiceStatus | undefined;
+  if (fundedPct >= 100) newStatus = InvoiceStatus.FUNDED; else if (fundedPct > 0) newStatus = InvoiceStatus.INVESTING;
+  const updated = db.invoice.update(id, { fundedPct, status: newStatus || inv.status });
 
   // Hedera token transfer if FT exists, otherwise only publish event
   try {
     if (inv.ftId) {
       await HederaOps.investInInvoice(id, investorId, amount, inv.ftId);
     } else {
-      await HederaOps.publishLifecycleEvent('INVESTMENT_MADE', id, { investorId, amount });
+      await HederaOps.publishLifecycleEvent('INVESTMENT_MADE', id, { investorId, amount, fundedPct });
+    }
+    if (newStatus === InvoiceStatus.FUNDED) {
+      db.event.publish(EventType.INVOICE_FUNDED, { invoiceId: id, fundedPct: 100 }, id);
+      await HederaOps.publishLifecycleEvent('INVOICE_FUNDED', id, { fundedPct: 100 });
     }
   } catch (e) {
     console.warn('[invoices] HederaOps investment publish skipped:', (e as Error).message);
   }
 
   res.status(201).json(ok(invst));
+});
+
+// Mark invoice as PAID (simulate settlement) and publish payouts
+invoicesRouter.post('/:id/pay', async (req, res) => {
+  const { id } = req.params;
+  const inv = db.invoice.get(id);
+  if (!inv) return res.status(404).json(err('Invoice not found'));
+  if (inv.status !== InvoiceStatus.FUNDED) {
+    return res.status(400).json(err('Invoice must be FUNDED to mark as PAID'));
+  }
+  const allInvestments = db.investment.list(id);
+  const total = allInvestments.reduce((s, it) => s + (it.amount || 0), 0) || 1;
+  const yieldBps = inv.yieldBps || 0;
+  const grossYield = (inv.amount * yieldBps) / 10000;
+
+  const payouts = allInvestments.map(it => {
+    const share = it.amount / total;
+    const principal = inv.amount * share;
+    const yieldAmt = grossYield * share;
+    return { investorId: it.investorId, principal, yield: yieldAmt, total: principal + yieldAmt };
+  });
+
+  const updated = db.invoice.update(id, { status: InvoiceStatus.PAID });
+  db.event.publish(EventType.INVOICE_PAID, { invoiceId: id, payouts }, id);
+
+  try {
+    await HederaOps.publishLifecycleEvent('INVOICE_PAID', id, { payoutsCount: payouts.length });
+  } catch {}
+
+  res.json(ok(updated));
 });

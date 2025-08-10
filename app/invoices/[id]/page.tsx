@@ -52,14 +52,29 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  async function onMarkPaid() {
+    setLoading(true); setError(null);
+    try {
+      await Api.payInvoice(id);
+      await fetchInvoice();
+    } catch (e:any) {
+      setError(e.message || 'Mark paid failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!invoice) return <div>Loading...</div>;
+
+  const fundedPct = invoice.fundedPct ?? 0;
+  const yieldPct = (invoice.yieldBps || 0) / 100;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Invoice {invoice.id}</h1>
-          <div className="text-white/70 text-sm">Seller: {invoice.sellerId}</div>
+          <div className="text-white/70 text-sm">Seller: {invoice.sellerId} {invoice.buyerId ? `• Buyer: ${invoice.buyerId}` : ''}</div>
         </div>
         <div className="text-xs px-2 py-1 rounded bg-white/10">{invoice.status}</div>
       </div>
@@ -71,13 +86,18 @@ export default function InvoiceDetailPage() {
           <div className="border border-white/10 rounded p-4">
             <div className="text-white/90">{invoice.currency} {invoice.amount}</div>
             <div className="text-white/60 text-sm">Due: {invoice.dueDate || '-'}</div>
+            <div className="text-white/60 text-sm">Yield: {yieldPct}%</div>
+            <div className="text-white/60 text-sm">Funded: {fundedPct}%</div>
           </div>
 
           <div className="border border-white/10 rounded p-4">
             <div className="font-medium mb-2">Actions</div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button className="px-3 py-2 rounded bg-indigo-500 hover:bg-indigo-600" onClick={onList} disabled={loading}>List Invoice</button>
               <button className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600" onClick={onInvest} disabled={loading || !accountId}>Invest</button>
+              {invoice.status === 'FUNDED' && (
+                <button className="px-3 py-2 rounded bg-blue-500 hover:bg-blue-600" onClick={onMarkPaid} disabled={loading}>Mark Paid</button>
+              )}
             </div>
             {!accountId && <div className="text-xs text-white/60 mt-2">Connect wallet to invest</div>}
           </div>

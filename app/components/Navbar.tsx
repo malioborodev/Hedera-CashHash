@@ -1,6 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { useWallet } from "../wallet/WalletProvider";
+import { NETWORK } from "../lib/config";
 
 export function Navbar() {
   const { accountId, connect } = useWallet();
@@ -24,16 +25,13 @@ export function Navbar() {
         
         <div className="flex items-center gap-4 text-sm">
           <Link href="/" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Landing</Link>
-          {/* Marketplace should be browsable without wallet */}
-          <Link href="/marketplace" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Marketplace</Link>
-          {/* Requires wallet */}
-          <Tab href="/create-invoice">Create Invoice</Tab>
+          {/* Dashboard tabs */}
+          <Tab href="/marketplace">Market</Tab>
+          <Tab href="/create-invoice">Create</Tab>
           <Tab href="/portfolio">Portfolio</Tab>
-          {/* ACK and Attester accessible without wallet */}
-          <Link href="/buyer-ack" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Buyer ACK</Link>
-          <Link href="/attester" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Attester</Link>
-          <Link href="/events" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Events</Link>
-          <Tab href="/settings">Settings</Tab>
+          <Tab href="/events">Events</Tab>
+          {/* Network badge */}
+          <NetworkBadge />
           {!accountId ? (
             <button onClick={connect} className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors">Connect Wallet</button>
           ) : (
@@ -41,6 +39,32 @@ export function Navbar() {
           )}
         </div>
       </div>
+      <NetworkMismatchBanner />
     </nav>
+  );
+}
+
+function NetworkBadge() {
+  const label = NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet';
+  const color = label === 'Mainnet' ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+  return (
+    <span className={`hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs ${color}`} aria-label={`Network: ${label}`}>
+      ● {label}
+    </span>
+  );
+}
+
+function NetworkMismatchBanner() {
+  // WalletProvider currently pairs to LedgerId.TESTNET; show banner if env is mainnet while wallet connected
+  const { accountId } = useWallet();
+  const expectingMainnet = NETWORK === 'mainnet';
+  const mismatch = accountId && expectingMainnet; // wallet (TESTNET) vs env (MAINNET)
+  if (!mismatch) return null;
+  return (
+    <div role="alert" className="border-t border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs md:text-sm">
+      <div className="max-w-6xl mx-auto px-4 py-2">
+        Network mismatch: Wallet on Testnet, App expects Mainnet. Please switch or refresh configuration.
+      </div>
+    </div>
   );
 }
