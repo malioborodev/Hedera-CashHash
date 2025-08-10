@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../lib/db.js';
-import { EventType } from '../types/index.js';
+import { db } from '../lib/db.ts';
+import { EventType } from '../types/index.ts';
 
 export const eventsRouter = Router();
 

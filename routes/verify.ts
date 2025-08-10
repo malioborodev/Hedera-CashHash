@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../lib/db.js';
-import { EventType, InvoiceStatus } from '../types/index.js';
+import { db } from '../lib/db.ts';
+import { EventType, InvoiceStatus } from '../types/index.ts';
 
 export const verifyRouter = Router();
 
@@ -19,7 +19,7 @@ verifyRouter.post('/buyer-ack', (req, res) => {
 
 verifyRouter.post('/attester-sign', (req, res) => {
   const { invoiceId, attesterId } = req.body as { invoiceId?: string; attesterId?: string };
-  if (!invoiceId || !attesterId) return res.status(400).json(err('invoiceId and attesterId required'));
+  if (!invoiceId || !attesterId) return res.status(400).json(err('invoiceId dan attesterId wajib'));
   const inv = db.invoice.get(invoiceId);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   const updated = db.invoice.update(invoiceId, { attesterId });

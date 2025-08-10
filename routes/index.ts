@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { invoicesRouter } from './invoices.js';
-import { authRouter } from './auth.js';
-import { verifyRouter } from './verify.js';
-import { eventsRouter } from './events.js';
+import { invoicesRouter } from './invoices.ts';
+import { authRouter } from './auth.ts';
+import { verifyRouter } from './verify.ts';
+import { eventsRouter } from './events.ts';
 
 export const api = Router();
 

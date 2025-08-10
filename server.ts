@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { env } from './config/env.js';
-import { api } from './routes/index.js';
+import { env } from './config/env.ts';
+import { api } from './routes/index.ts';
 
 dotenv.config();
 

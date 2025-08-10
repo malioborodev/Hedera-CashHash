@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { db } from '../lib/db.js';
-import type { Invoice } from '../types/index.js';
-import { InvoiceStatus, EventType } from '../types/index.js';
-import { upload, hashFile } from '../lib/multer.js';
+import { db } from '../lib/db.ts';
+import type { Invoice } from '../types/index.ts';
+import { InvoiceStatus, EventType } from '../types/index.ts';
+import { upload, hashFile } from '../lib/multer.ts';
 
 export const invoicesRouter = Router();
 

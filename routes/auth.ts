@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import type { ApiResponse } from '../types/index.js';
+import type { ApiResponse } from '../types/index.ts';
 
 const nonces = new Map<string, string>();
 
