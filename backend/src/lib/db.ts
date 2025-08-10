@@ -8,9 +8,15 @@ const files = new Map<string, FileRecord>();
 
 export const db = {
   invoice: {
-    create: (data: Omit<Invoice, 'createdAt' | 'updatedAt'>): Invoice => {
+    create: (data: Omit<Invoice, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Invoice => {
       const now = new Date().toISOString();
-      const inv: Invoice = { ...data, createdAt: now, updatedAt: now };
+      const inv: Invoice = { 
+        id: nanoid(), 
+        status: InvoiceStatus.DRAFT, 
+        ...data, 
+        createdAt: now, 
+        updatedAt: now 
+      };
       invoices.set(inv.id, inv);
       return inv;
     },
@@ -22,7 +28,10 @@ export const db = {
       return next;
     },
     get: (id: string): Invoice | undefined => invoices.get(id),
-    list: (): Invoice[] => Array.from(invoices.values()).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)),
+    list: (status?: InvoiceStatus): Invoice[] => {
+      const all = Array.from(invoices.values()).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+      return status ? all.filter(inv => inv.status === status) : all;
+    },
   },
   investment: {
     create: (data: Omit<Investment, 'id' | 'createdAt'>): Investment => {
@@ -49,11 +58,14 @@ export const db = {
     }
   },
   file: {
-    save: (file: Omit<FileRecord, 'uploadedAt'>): FileRecord => {
-      const rec: FileRecord = { ...file, uploadedAt: new Date().toISOString() };
-      files.set(file.id, rec);
+    create: (file: Omit<FileRecord, 'id' | 'uploadedAt'>): FileRecord => {
+      const rec: FileRecord = { id: nanoid(), ...file, uploadedAt: new Date().toISOString() };
+      files.set(rec.id, rec);
       return rec;
     },
-    get: (id: string): FileRecord | undefined => files.get(id)
+    get: (id: string): FileRecord | undefined => files.get(id),
+    getByInvoice: (invoiceId: string): FileRecord | undefined => {
+      return Array.from(files.values()).find(f => f.invoiceId === invoiceId);
+    }
   }
 };

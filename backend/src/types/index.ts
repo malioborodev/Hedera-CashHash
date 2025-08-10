@@ -1,6 +1,6 @@
 export interface Invoice {
   id: string;
-  issuerId: string;
+  sellerId: string; // was issuerId
   buyerId?: string;
   attesterId?: string;
   amount: number;
@@ -13,7 +13,7 @@ export interface Invoice {
   fundedPct?: number;
   nftId?: string;
   ftId?: string;
-  fileIds?: string[];
+  fileId?: string; // single file linkage for MVP
   dueDate?: string;
   createdAt: string;
   updatedAt: string;
@@ -56,16 +56,18 @@ export enum EventType {
   BUYER_ACK = 'BUYER_ACK',
   ATTESTER_SIGN = 'ATTESTER_SIGN',
   INVOICE_PAID = 'INVOICE_PAID',
-  INVOICE_DEFAULTED = 'INVOICE_DEFAULTED'
+  INVOICE_DEFAULTED = 'INVOICE_DEFAULTED',
+  FILE_UPLOADED = 'FILE_UPLOADED'
 }
 
 export interface FileRecord {
   id: string;
+  invoiceId: string;
   filename: string;
   mimetype: string;
   size: number;
   sha256: string;
-  data: Buffer;
+  buffer: Buffer;
   uploadedAt: string;
 }
 

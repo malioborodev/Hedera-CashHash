@@ -16,6 +16,14 @@ invoicesRouter.get('/', (req, res) => {
   res.json(ok(items));
 });
 
+// Get single invoice by id
+invoicesRouter.get('/:id', (req, res) => {
+  const { id } = req.params;
+  const inv = db.invoice.get(id);
+  if (!inv) return res.status(404).json(err('Invoice not found'));
+  res.json(ok(inv));
+});
+
 // Create invoice
 invoicesRouter.post('/', (req, res) => {
   const { sellerId, buyerId, dueDate, amount, currency } = req.body as Partial<Invoice>;
