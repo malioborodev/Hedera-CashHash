@@ -1,23 +1,21 @@
 "use client";
-import React from "react";
 import { useWallet } from "./WalletProvider";
-import { HashConnectConnectionState } from "hashconnect";
+import React from "react";
 
 export function WalletButton() {
   const { status, accountId, connect, disconnect } = useWallet();
 
-  if (status === HashConnectConnectionState.Connected && accountId) {
-    const short = accountId.length > 10 ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}` : accountId;
+  const connected = accountId && status && (String(status).toLowerCase() === "connected" || String(status) === "2");
+
+  if (connected) {
     return (
-      <button onClick={disconnect} className="px-3 py-2 rounded bg-white/10 hover:bg-white/20 border border-white/10">
-        {short}
-      </button>
+      <div className="flex items-center gap-2">
+        <span className="text-white/70 text-xs">{accountId}</span>
+        <button className="px-3 py-1.5 rounded border border-white/10 hover:border-white/20 text-sm" onClick={disconnect}>Disconnect</button>
+      </div>
     );
   }
-
   return (
-    <button onClick={connect} className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600">
-      Connect HashPack
-    </button>
+    <button onClick={connect} className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-sm">Connect HashPack</button>
   );
 }

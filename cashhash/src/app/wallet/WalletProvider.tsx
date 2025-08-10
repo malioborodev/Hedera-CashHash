@@ -1,51 +1,65 @@
 "use client";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { HashConnect, HashConnectConnectionState, SessionData } from "hashconnect";
-import { LedgerId, AccountId, TransferTransaction, Hbar } from "@hashgraph/sdk";
+
+// Client-only imports untuk menghindari SSR issue
+const useHashConnect = () => {
+  const [hc, setHc] = useState<any>(null);
+  const [status, setStatus] = useState<string>("disconnected");
+  const [pairing, setPairing] = useState<any>(null);
+
+  useEffect(() => {
+    let instance: any = null;
+
+    // Lazy load HashConnect hanya di client
+    const initHashConnect = async () => {
+      try {
+        const { HashConnect, HashConnectConnectionState } = await import("hashconnect");
+        const { LedgerId } = await import("@hashgraph/sdk");
+        
+        const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo";
+        const appMetadata = {
+          name: "CashHash",
+          description: "Receivable financing on Hedera",
+          icons: ["https://hashpack.app/assets/img/hashpack-logo.png"],
+          url: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+        };
+        
+        instance = new HashConnect(LedgerId.TESTNET, projectId, appMetadata, true);
+        setHc(instance);
+
+        instance.connectionStatusChangeEvent.on((s: any) => setStatus(s));
+        instance.pairingEvent.on((p: any) => setPairing(p));
+        instance.disconnectionEvent.on(() => setPairing(null));
+
+        await instance.init();
+      } catch (e) {
+        console.warn("HashConnect init failed", e);
+      }
+    };
+
+    initHashConnect();
+
+    return () => {
+      instance?.closeModal();
+    };
+  }, []);
+
+  return { hc, status, pairing };
+};
 
 export type WalletContextState = {
-  status: HashConnectConnectionState;
+  status: string;
   accountId?: string;
   connect: () => Promise<void>;
   disconnect: () => void;
-  signerFor: (accountId: string) => ReturnType<HashConnect["getSigner"]> | undefined;
+  signerFor: (accountId: string) => any;
   sendHbarDemo: (to: string, amountTinybar: number) => Promise<string | null>;
 };
 
 const WalletContext = createContext<WalletContextState | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [hc, setHc] = useState<HashConnect | null>(null);
-  const [status, setStatus] = useState<HashConnectConnectionState>(HashConnectConnectionState.Disconnected);
-  const [pairing, setPairing] = useState<SessionData | null>(null);
-
-  useEffect(() => {
-    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo";
-    const appMetadata = {
-      name: "CashHash",
-      description: "Receivable financing on Hedera",
-      icons: ["https://hashpack.app/assets/img/hashpack-logo.png"],
-      url: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
-    };
-    const instance = new HashConnect(LedgerId.TESTNET, projectId, appMetadata, true);
-    setHc(instance);
-
-    instance.connectionStatusChangeEvent.on((s) => setStatus(s));
-    instance.pairingEvent.on((p) => setPairing(p));
-    instance.disconnectionEvent.on(() => setPairing(null));
-
-    (async () => {
-      try {
-        await instance.init();
-      } catch (e) {
-        console.warn("HashConnect init failed", e);
-      }
-    })();
-
-    return () => {
-      instance?.closeModal();
-    };
-  }, []);
+  const { hc, status, pairing } = useHashConnect();
 
   const accountId = useMemo(() => pairing?.accountIds?.[0] || undefined, [pairing]);
 
@@ -71,7 +85,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   function signerFor(accId: string) {
     if (!hc) return undefined;
     try {
-      return hc.getSigner(AccountId.fromString(accId));
+      // Dynamic import for AccountId
+      import("@hashgraph/sdk").then(({ AccountId }) => {
+        return hc.getSigner(AccountId.fromString(accId));
+      });
     } catch (e) {
       console.error(e);
       return undefined;
@@ -83,6 +100,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const signer = signerFor(accountId);
     if (!signer) return null;
     try {
+      const { AccountId, TransferTransaction, Hbar } = await import("@hashgraph/sdk");
       const tx = await new TransferTransaction()
         .addHbarTransfer(AccountId.fromString(accountId), Hbar.fromTinybars(-Math.abs(amountTinybar)))
         .addHbarTransfer(AccountId.fromString(to), Hbar.fromTinybars(Math.abs(amountTinybar)))
