@@ -24,11 +24,14 @@ export function Navbar() {
         
         <div className="flex items-center gap-4 text-sm">
           <Link href="/" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Landing</Link>
-          <Tab href="/marketplace">Marketplace</Tab>
+          {/* Marketplace should be browsable without wallet */}
+          <Link href="/marketplace" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Marketplace</Link>
+          {/* Requires wallet */}
           <Tab href="/create-invoice">Create Invoice</Tab>
           <Tab href="/portfolio">Portfolio</Tab>
-          <Tab href="/buyer-ack">Buyer ACK</Tab>
-          <Tab href="/attester">Attester</Tab>
+          {/* ACK and Attester accessible without wallet */}
+          <Link href="/buyer-ack" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Buyer ACK</Link>
+          <Link href="/attester" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Attester</Link>
           <Link href="/events" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Events</Link>
           <Tab href="/settings">Settings</Tab>
           {!accountId ? (

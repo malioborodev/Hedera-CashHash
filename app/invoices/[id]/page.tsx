@@ -43,8 +43,13 @@ export default function InvoiceDetailPage() {
   async function onList() {
     setLoading(true); setError(null);
     try {
-      await fetch(`/api/invoices/${id}/list`); // noop
-    } catch {}
+      await Api.listInvoice(id);
+      await fetchInvoice();
+    } catch (e:any) {
+      setError(e.message || 'List failed');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!invoice) return <div>Loading...</div>;

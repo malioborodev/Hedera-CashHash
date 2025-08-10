@@ -3,6 +3,7 @@ import { db } from '../lib/db.ts';
 import type { Invoice } from '../types/index.ts';
 import { InvoiceStatus, EventType } from '../types/index.ts';
 import { upload, hashFile } from '../lib/multer.ts';
+import { HederaOps } from '../lib/hedera.ts';
 
 export const invoicesRouter = Router();
 
@@ -25,18 +26,29 @@ invoicesRouter.get('/:id', (req, res) => {
 });
 
 // Create invoice
-invoicesRouter.post('/', (req, res) => {
+invoicesRouter.post('/', async (req, res) => {
   const { sellerId, buyerId, dueDate, amount, currency } = req.body as Partial<Invoice>;
   if (!sellerId || !dueDate || !amount || !currency) {
     return res.status(400).json(err('sellerId, dueDate, amount, currency required'));
   }
   const inv = db.invoice.create({ sellerId, buyerId, dueDate, amount, currency });
   db.event.publish(EventType.INVOICE_CREATED, { invoiceId: inv.id, amount, currency });
-  res.status(201).json(ok(inv));
+
+  // Hedera-native side effects (best-effort)
+  try {
+    const result = await HederaOps.createInvoice(inv);
+    if (result?.nft?.tokenId || result?.ft?.tokenId) {
+      db.invoice.update(inv.id, { nftId: result?.nft?.tokenId, ftId: result?.ft?.tokenId });
+    }
+  } catch (e) {
+    console.warn('[invoices] HederaOps.createInvoice skipped:', (e as Error).message);
+  }
+
+  res.status(201).json(ok(db.invoice.get(inv.id)!));
 });
 
 // Upload invoice file and attach to invoice
-invoicesRouter.post('/:id/upload', upload.single('file'), (req, res) => {
+invoicesRouter.post('/:id/upload', upload.single('file'), async (req, res) => {
   const { id } = req.params;
   if (!req.file) return res.status(400).json(err('file required'));
   const inv = db.invoice.get(id);
@@ -52,6 +64,14 @@ invoicesRouter.post('/:id/upload', upload.single('file'), (req, res) => {
   });
   const updated = db.invoice.update(id, { fileId: rec.id });
   db.event.publish(EventType.FILE_UPLOADED, { invoiceId: id, fileId: rec.id, sha256: hash }, id);
+
+  // Hedera-native: publish lifecycle event and optionally upload to File Service
+  try {
+    await HederaOps.publishLifecycleEvent('FILE_UPLOADED', id, { fileId: rec.id, sha256: hash });
+  } catch (e) {
+    console.warn('[invoices] HederaOps.publishLifecycleEvent(FILE_UPLOADED) skipped:', (e as Error).message);
+  }
+
   res.json(ok({ invoice: updated, file: rec }));
 });
 
@@ -75,17 +95,24 @@ invoicesRouter.get('/:id/file/download', (req, res) => {
 });
 
 // Update status to LISTED and publish event
-invoicesRouter.post('/:id/list', (req, res) => {
+invoicesRouter.post('/:id/list', async (req, res) => {
   const { id } = req.params;
   const inv = db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   const updated = db.invoice.update(id, { status: InvoiceStatus.LISTED });
   db.event.publish(EventType.INVOICE_LISTED, { invoiceId: id }, id);
+
+  try {
+    await HederaOps.publishLifecycleEvent('INVOICE_LISTED', id, {});
+  } catch (e) {
+    console.warn('[invoices] HederaOps.publishLifecycleEvent(INVOICE_LISTED) skipped:', (e as Error).message);
+  }
+
   res.json(ok(updated));
 });
 
 // Invest into an invoice
-invoicesRouter.post('/:id/invest', (req, res) => {
+invoicesRouter.post('/:id/invest', async (req, res) => {
   const { id } = req.params;
   const { investorId, amount } = req.body as { investorId?: string; amount?: number };
   if (!investorId || !amount) return res.status(400).json(err('investorId and amount required'));
@@ -93,5 +120,17 @@ invoicesRouter.post('/:id/invest', (req, res) => {
   if (!inv) return res.status(404).json(err('Invoice not found'));
   const invst = db.investment.create({ invoiceId: id, investorId, amount });
   db.event.publish(EventType.INVESTMENT_MADE, { invoiceId: id, investmentId: invst.id, amount }, id);
+
+  // Hedera token transfer if FT exists, otherwise only publish event
+  try {
+    if (inv.ftId) {
+      await HederaOps.investInInvoice(id, investorId, amount, inv.ftId);
+    } else {
+      await HederaOps.publishLifecycleEvent('INVESTMENT_MADE', id, { investorId, amount });
+    }
+  } catch (e) {
+    console.warn('[invoices] HederaOps investment publish skipped:', (e as Error).message);
+  }
+
   res.status(201).json(ok(invst));
 });

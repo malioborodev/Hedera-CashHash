@@ -26,6 +26,8 @@ export const Api = {
   listEvents: (params: URLSearchParams) => api(`/api/events?${params.toString()}`).then(r=>r.data),
   buyerAck: (payload: any) => api(`/api/verify/buyer-ack`, { method: 'POST', body: JSON.stringify(payload) }).then(r=>r.data),
   attesterSign: (payload: any) => api(`/api/verify/attester-sign`, { method: 'POST', body: JSON.stringify(payload) }).then(r=>r.data),
+  // NEW: list invoice (set status LISTED)
+  listInvoice: (id: string) => api(`/api/invoices/${id}/list`, { method: 'POST' }).then(r=>r.data),
 };
 
 export async function uploadInvoiceFile(id: string, file: File) {
