@@ -55,3 +55,20 @@ pids
 .vscode/
 .idea/
 node_modules/
+
+# Web3/Blockchain build artifacts (ignore anywhere)
+artifacts/
+cache/
+broadcast/
+.typechain/
+.typechain-cache/
+typechain/
+typechain-types/
+abi/
+abis/
+generated/
+deployments/
+build/contracts
+contracts/build
+.openzeppelin/
+coverage/

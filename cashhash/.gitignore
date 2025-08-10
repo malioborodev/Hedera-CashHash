@@ -55,3 +55,10 @@ pids
 .vscode/
 .idea/
 node_modules/
+
+# Web3 UI generated and artifacts (if FE includes ABIs)
+abi/
+abis/
+generated/
+.typechain/
+.typechain-cache/
