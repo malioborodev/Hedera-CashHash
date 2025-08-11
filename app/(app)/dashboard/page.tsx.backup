@@ -1,0 +1,1686 @@
+"use client";
+import { useState } from "react";
+import { TrendingUp, TrendingDown, Clock, Shield, MapPin, FileText, ExternalLink, Filter, Search, ChevronDown, Wallet, AlertCircle, Upload, DollarSign, Activity, Users, HelpCircle, PlusCircle, Briefcase, BarChart3, Eye, Download, CheckCircle } from "lucide-react";
+import { HorizontalTabs } from "../_components/HorizontalTabs";
+
+// Mock data interfaces
+interface Invoice {
+  id: string;
+  exporter: string;
+  commodity: string;
+  amount: number;
+  currency: string;
+  tenor: number; // days
+  yield: number; // percentage
+  riskScore: number; // 1-10
+  country: string;
+  status: 'LISTED' | 'FUNDING' | 'FUNDED' | 'PAID';
+  fundingProgress: number; // percentage
+  daysRemaining: number;
+  buyerCompany: string;
+  description: string;
+}
+
+interface Investment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  currency: string;
+  yield: number;
+  status: 'ACTIVE' | 'COMPLETED' | 'DEFAULTED';
+  investmentDate: string;
+  maturityDate: string;
+  currentValue: number;
+}
+
+interface Event {
+  id: string;
+  type: 'INVESTMENT' | 'PAYMENT' | 'LISTING' | 'MATURITY';
+  description: string;
+  timestamp: string;
+  amount?: number;
+  currency?: string;
+}
+
+// Mock data
+const mockInvoices: Invoice[] = [
+  {
+    id: "INV-001",
+    exporter: "Global Commodities Ltd",
+    commodity: "Coffee Beans",
+    amount: 250000,
+    currency: "USD",
+    tenor: 90,
+    yield: 12.5,
+    riskScore: 3,
+    country: "Brazil",
+    status: "LISTED",
+    fundingProgress: 65,
+    daysRemaining: 25,
+    buyerCompany: "European Coffee Co",
+    description: "Premium Arabica coffee beans, 500 tons, FOB Santos port"
+  },
+  {
+    id: "INV-002",
+    exporter: "Pacific Trade Corp",
+    commodity: "Copper Ore",
+    amount: 1200000,
+    currency: "USD",
+    tenor: 120,
+    yield: 15.2,
+    riskScore: 5,
+    country: "Chile",
+    status: "FUNDING",
+    fundingProgress: 85,
+    daysRemaining: 12,
+    buyerCompany: "Asian Metals Inc",
+    description: "High-grade copper concentrate, 2000 tons, CIF Shanghai"
+  },
+  {
+    id: "INV-003",
+    exporter: "Agri Export Solutions",
+    commodity: "Soybeans",
+    amount: 800000,
+    currency: "USD",
+    tenor: 60,
+    yield: 10.8,
+    riskScore: 2,
+    country: "Argentina",
+    status: "FUNDED",
+    fundingProgress: 100,
+    daysRemaining: 45,
+    buyerCompany: "Global Feed Mills",
+    description: "Non-GMO soybeans, 1500 tons, FOB Buenos Aires"
+  }
+];
+
+const mockInvestments: Investment[] = [
+  {
+    id: "INV-P001",
+    invoiceId: "INV-003",
+    amount: 50000,
+    currency: "USD",
+    yield: 10.8,
+    status: "ACTIVE",
+    investmentDate: "2024-01-15",
+    maturityDate: "2024-03-15",
+    currentValue: 52700
+  },
+  {
+    id: "INV-P002",
+    invoiceId: "INV-001",
+    amount: 25000,
+    currency: "USD",
+    yield: 12.5,
+    status: "ACTIVE",
+    investmentDate: "2024-01-20",
+    maturityDate: "2024-04-20",
+    currentValue: 26800
+  }
+];
+
+// Mock connection status - set to true to bypass wallet requirement
+const connected = true;
+
+const mockEvents: Event[] = [
+  {
+    id: "1",
+    type: "INVESTMENT",
+    description: "Investment of $50,000 in Coffee Beans invoice",
+    timestamp: "2024-01-15T10:30:00Z",
+    amount: 50000,
+    currency: "USD"
+  },
+  {
+    id: "2",
+    type: "LISTING",
+    description: "New Copper Ore invoice listed",
+    timestamp: "2024-01-14T15:45:00Z",
+    amount: 1200000,
+    currency: "USD"
+  },
+  {
+    id: "3",
+    type: "PAYMENT",
+    description: "Payment received for Soybeans invoice",
+    timestamp: "2024-01-13T09:15:00Z",
+    amount: 800000,
+    currency: "USD"
+  }
+];
+
+export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState('market');
+  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [investments, setInvestments] = useState<Investment[]>(mockInvestments);
+  const [events, setEvents] = useState<Event[]>(mockEvents);
+  const [selectedCommodity, setSelectedCommodity] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [yieldRange, setYieldRange] = useState<[number, number]>([0, 20]);
+  const [riskRange, setRiskRange] = useState<[number, number]>([1, 10]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('yield');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [investAmount, setInvestAmount] = useState('');
+
+  const handleInvest = async (invoiceId: string, amount: number) => {
+    // Mock investment logic
+    console.log(`Investing ${amount} in invoice ${invoiceId}`);
+    // In real implementation, this would call the Hedera integration
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+  };
+
+  const getRiskColor = (score: number) => {
+    if (score <= 3) return 'bg-emerald-500';
+    if (score <= 6) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  const getRiskLabel = (score: number) => {
+    if (score <= 3) return 'Low Risk';
+    if (score <= 6) return 'Medium Risk';
+    return 'High Risk';
+  };
+
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Filter and sort invoices
+  const filteredInvoices = invoices.filter(invoice => {
+    if (selectedCommodity !== 'all' && !invoice.commodity.toLowerCase().includes(selectedCommodity.toLowerCase())) return false;
+    if (selectedCountry !== 'all' && invoice.country !== selectedCountry) return false;
+    if (invoice.yield < yieldRange[0] || invoice.yield > yieldRange[1]) return false;
+    if (invoice.riskScore < riskRange[0] || invoice.riskScore > riskRange[1]) return false;
+    if (searchTerm && !invoice.commodity.toLowerCase().includes(searchTerm.toLowerCase()) && 
+        !invoice.exporter.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  }).sort((a, b) => {
+    const aValue = a[sortBy as keyof Invoice] as number;
+    const bValue = b[sortBy as keyof Invoice] as number;
+    return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+  });
+
+  const renderMarketTab = () => (
+    <div className="space-y-6">
+      {/* Market Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm">Total Market Value</p>
+              <p className="text-2xl font-bold text-white">$2.25M</p>
+            </div>
+            <DollarSign className="w-8 h-8 text-emerald-400" />
+          </div>
+        </div>
+        <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm">Active Invoices</p>
+              <p className="text-2xl font-bold text-white">{invoices.length}</p>
+            </div>
+            <FileText className="w-8 h-8 text-blue-400" />
+          </div>
+        </div>
+        <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm">Avg. Yield</p>
+              <p className="text-2xl font-bold text-white">12.8%</p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-purple-400" />
+          </div>
+        </div>
+        <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm">Funding Rate</p>
+              <p className="text-2xl font-bold text-white">83%</p>
+            </div>
+            <Activity className="w-8 h-8 text-orange-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Commodity</label>
+            <select 
+              value={selectedCommodity} 
+              onChange={(e) => setSelectedCommodity(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+            >
+              <option value="all">All Commodities</option>
+              <option value="coffee">Coffee</option>
+              <option value="copper">Copper</option>
+              <option value="soybeans">Soybeans</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Country</label>
+            <select 
+              value={selectedCountry} 
+              onChange={(e) => setSelectedCountry(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+            >
+              <option value="all">All Countries</option>
+              <option value="Brazil">Brazil</option>
+              <option value="Chile">Chile</option>
+              <option value="Argentina">Argentina</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Sort By</label>
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+            >
+              <option value="yield">Yield</option>
+              <option value="amount">Amount</option>
+              <option value="tenor">Tenor</option>
+              <option value="riskScore">Risk Score</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Search</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search invoices..."
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Invoice Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredInvoices.map((invoice) => (
+          <div key={invoice.id} className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">{invoice.commodity}</h3>
+                <p className="text-slate-400 text-sm">{invoice.exporter}</p>
+              </div>
+              <div className={`w-3 h-3 rounded-full ${getRiskColor(invoice.riskScore)}`} title={getRiskLabel(invoice.riskScore)}></div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Amount:</span>
+                <span className="text-white font-medium">{formatCurrency(invoice.amount, invoice.currency)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Yield:</span>
+                <span className="text-emerald-400 font-medium">{invoice.yield}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Tenor:</span>
+                <span className="text-white">{invoice.tenor} days</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Country:</span>
+                <span className="text-white">{invoice.country}</span>
+              </div>
+              
+              {/* Funding Progress */}
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-slate-400">Funding Progress</span>
+                  <span className="text-white">{invoice.fundingProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div 
+                    className="bg-emerald-500 h-2 rounded-full transition-all" 
+                    style={{ width: `${invoice.fundingProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setSelectedInvoice(invoice)}
+              className="w-full mt-4 bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+            >
+              Invest Now
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderCreateTab = () => (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-4">Create Invoice</h2>
+        <p className="text-slate-300">Upload and tokenize your export invoice to get instant funding</p>
+      </div>
+      
+      {/* Progress Steps */}
+      <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm font-bold">1</div>
+            <span className="text-white font-medium">Invoice Details</span>
+          </div>
+          <div className="flex-1 h-1 bg-slate-700 mx-4 rounded"></div>
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-slate-400 text-sm font-bold">2</div>
+            <span className="text-slate-400">Upload Documents</span>
+          </div>
+          <div className="flex-1 h-1 bg-slate-700 mx-4 rounded"></div>
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-slate-400 text-sm font-bold">3</div>
+            <span className="text-slate-400">Review & Submit</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Form */}
+        <div className="lg:col-span-2">
+          <div className="bg-white/5 backdrop-blur rounded-xl p-8 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Invoice Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Invoice Number *</label>
+                <input
+                  type="text"
+                  placeholder="INV-2024-001"
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Commodity *</label>
+                <select className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="">Select Commodity</option>
+                  <option value="coffee">Coffee Beans</option>
+                  <option value="copper">Copper Ore</option>
+                  <option value="soybeans">Soybeans</option>
+                  <option value="palm-oil">Palm Oil</option>
+                  <option value="rubber">Rubber</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Invoice Amount *</label>
+                <input
+                  type="number"
+                  placeholder="250000"
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Currency *</label>
+                <select className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="JPY">JPY - Japanese Yen</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Payment Terms (Days) *</label>
+                <select className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="30">30 Days</option>
+                  <option value="60">60 Days</option>
+                  <option value="90">90 Days</option>
+                  <option value="120">120 Days</option>
+                  <option value="180">180 Days</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Buyer Company *</label>
+                <input
+                  type="text"
+                  placeholder="European Coffee Co"
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Country of Origin *</label>
+                <select className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="">Select Country</option>
+                  <option value="Brazil">Brazil</option>
+                  <option value="Chile">Chile</option>
+                  <option value="Argentina">Argentina</option>
+                  <option value="Indonesia">Indonesia</option>
+                  <option value="Malaysia">Malaysia</option>
+                  <option value="Thailand">Thailand</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+                <input
+                  type="text"
+                  placeholder="500 tons"
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Description *</label>
+              <textarea
+                rows={4}
+                placeholder="Premium Arabica coffee beans, 500 tons, FOB Santos port. Include shipping terms, quality specifications, and any special conditions."
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
+              ></textarea>
+            </div>
+            
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Upload Invoice Document *</label>
+              <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:border-emerald-500 transition-colors">
+                <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <p className="text-slate-300 mb-2">Drag and drop your invoice file here</p>
+                <p className="text-slate-400 text-sm mb-4">Supports PDF, PNG, JPG (Max 10MB)</p>
+                <button className="bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+                  Choose File
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Estimated Returns */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Estimated Returns</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Funding Speed:</span>
+                <span className="text-emerald-400">24-48 hours</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Platform Fee:</span>
+                <span className="text-white">0.75%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Est. Yield Range:</span>
+                <span className="text-white">8-18% APY</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Min. Investment:</span>
+                <span className="text-white">$1,000</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Required Documents */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Required Documents</h3>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-300 text-sm">Commercial Invoice</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-400 text-sm">Purchase Order (Optional)</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-400 text-sm">Bill of Lading (Optional)</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-400 text-sm">Certificate of Origin (Optional)</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Help */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Need Help?</h3>
+            <p className="text-slate-400 text-sm mb-4">Our team is here to assist you with the invoice creation process.</p>
+            <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+              Contact Support
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex gap-4 justify-end">
+        <button className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors">
+          Save Draft
+        </button>
+        <button className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors">
+          Create & Tokenize Invoice
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderPortfolioTab = () => (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-4">My Portfolio</h2>
+        <p className="text-slate-300">Track your investments and returns across all asset classes</p>
+      </div>
+      
+      {/* Portfolio Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur rounded-xl p-6 border border-emerald-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Total Invested</h3>
+            <TrendingUp className="w-6 h-6 text-emerald-400" />
+          </div>
+          <p className="text-3xl font-bold text-emerald-400 mb-2">$125,000</p>
+          <div className="flex items-center space-x-2">
+            <span className="text-emerald-400 text-sm">+12.5%</span>
+            <span className="text-slate-400 text-sm">from last month</span>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur rounded-xl p-6 border border-blue-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Current Value</h3>
+            <DollarSign className="w-6 h-6 text-blue-400" />
+          </div>
+          <p className="text-3xl font-bold text-blue-400 mb-2">$142,750</p>
+          <div className="flex items-center space-x-2">
+            <span className="text-blue-400 text-sm">+14.2%</span>
+            <span className="text-slate-400 text-sm">total return</span>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur rounded-xl p-6 border border-purple-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Monthly Yield</h3>
+            <Activity className="w-6 h-6 text-purple-400" />
+          </div>
+          <p className="text-3xl font-bold text-purple-400 mb-2">12.8%</p>
+          <div className="flex items-center space-x-2">
+            <span className="text-purple-400 text-sm">APY</span>
+            <span className="text-slate-400 text-sm">average yield</span>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur rounded-xl p-6 border border-orange-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Active Positions</h3>
+            <BarChart3 className="w-6 h-6 text-orange-400" />
+          </div>
+          <p className="text-3xl font-bold text-orange-400 mb-2">8</p>
+          <div className="flex items-center space-x-2">
+            <span className="text-orange-400 text-sm">+2</span>
+            <span className="text-slate-400 text-sm">this month</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Portfolio Allocation */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2">
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Portfolio Performance</h3>
+            <div className="h-64 bg-slate-800/50 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <BarChart3 className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                <p className="text-slate-400">Performance Chart</p>
+                <p className="text-slate-500 text-sm">Interactive chart coming soon</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-6">
+          {/* Asset Allocation */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Asset Allocation</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-300">Coffee</span>
+                  <span className="text-white">35%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-emerald-500 h-2 rounded-full" style={{width: '35%'}}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-300">Copper</span>
+                  <span className="text-white">25%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full" style={{width: '25%'}}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-300">Soybeans</span>
+                  <span className="text-white">20%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-purple-500 h-2 rounded-full" style={{width: '20%'}}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-300">Palm Oil</span>
+                  <span className="text-white">15%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-orange-500 h-2 rounded-full" style={{width: '15%'}}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-slate-300">Other</span>
+                  <span className="text-white">5%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-slate-500 h-2 rounded-full" style={{width: '5%'}}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Quick Actions */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="space-y-3">
+              <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Reinvest Returns
+              </button>
+              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Withdraw Funds
+              </button>
+              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Export Report
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Active Investments Table */}
+      <div className="bg-white/5 backdrop-blur rounded-xl border border-white/10 overflow-hidden">
+        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-white">Active Investments</h3>
+          <div className="flex items-center space-x-4">
+            <select className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm">
+              <option value="all">All Assets</option>
+              <option value="coffee">Coffee</option>
+              <option value="copper">Copper</option>
+              <option value="soybeans">Soybeans</option>
+            </select>
+            <select className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-800/50">
+              <tr>
+                <th className="text-left p-4 text-slate-300 font-medium">Invoice Details</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Investment</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Current Value</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Yield</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Status</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Maturity</th>
+                <th className="text-left p-4 text-slate-300 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {investments.map((investment) => {
+                const invoice = invoices.find(inv => inv.id === investment.invoiceId);
+                return (
+                  <tr key={investment.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="p-4">
+                      <div>
+                        <p className="text-white font-medium">{investment.invoiceId}</p>
+                        <p className="text-slate-400 text-sm">{invoice?.commodity || 'Unknown'}</p>
+                        <p className="text-slate-500 text-xs">Risk: {getRiskLabel(invoice?.riskScore || 5)}</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div>
+                        <p className="text-white font-medium">{formatCurrency(investment.amount, investment.currency)}</p>
+                        <p className="text-slate-400 text-sm">100 shares</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div>
+                        <p className="text-emerald-400 font-medium">{formatCurrency(investment.currentValue, investment.currency)}</p>
+                        <p className="text-emerald-400 text-sm">+{((investment.currentValue - investment.amount) / investment.amount * 100).toFixed(1)}%</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div>
+                        <p className="text-purple-400 font-medium">{investment.yield}%</p>
+                        <p className="text-slate-400 text-sm">APY</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        investment.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400' :
+                        investment.status === 'COMPLETED' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {investment.status}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div>
+                        <p className="text-slate-300">{formatDate(investment.maturityDate)}</p>
+                        <p className="text-slate-500 text-sm">45 days left</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderEventsTab = () => (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-4">Events & Market Updates</h2>
+        <p className="text-slate-300">Stay informed with real-time market insights, platform updates, and community events</p>
+      </div>
+      
+      {/* Event Categories */}
+      <div className="flex flex-wrap gap-4 mb-8">
+        <button className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium">
+          All Events
+        </button>
+        <button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors">
+          Market Updates
+        </button>
+        <button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors">
+          Platform News
+        </button>
+        <button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors">
+          Community Events
+        </button>
+        <button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors">
+          Webinars
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main Events Feed */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Featured Event */}
+          <div className="bg-gradient-to-r from-emerald-500/20 to-blue-500/20 backdrop-blur rounded-xl p-8 border border-emerald-500/30">
+            <div className="flex items-center space-x-2 mb-4">
+              <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-xs font-bold">FEATURED</span>
+              <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-medium">Live Event</span>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4">Q1 2024 CashHash Platform Update</h3>
+            <p className="text-slate-300 mb-6">Join us for an exclusive look at new features, enhanced security measures, and upcoming asset classes. Learn about our roadmap for 2024 and participate in a live Q&A session.</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-6 text-sm">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-slate-400" />
+                  <span className="text-slate-300">March 15, 2024 - 2:00 PM UTC</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-slate-400" />
+                  <span className="text-slate-300">1,247 registered</span>
+                </div>
+              </div>
+              <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                Register Now
+              </button>
+            </div>
+          </div>
+          
+          {/* Events List */}
+          {events.map((event) => (
+            <div key={event.id} className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 hover:border-white/20 transition-colors">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    event.type === 'INVESTMENT' ? 'bg-emerald-500' :
+                    event.type === 'PAYMENT' ? 'bg-blue-500' :
+                    event.type === 'LISTING' ? 'bg-purple-500' :
+                    'bg-orange-500'
+                  }`}></div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    event.type === 'INVESTMENT' ? 'bg-emerald-500/20 text-emerald-400' :
+                    event.type === 'PAYMENT' ? 'bg-blue-500/20 text-blue-400' :
+                    event.type === 'LISTING' ? 'bg-purple-500/20 text-purple-400' :
+                    'bg-orange-500/20 text-orange-400'
+                  }`}>
+                    {event.type}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-sm">{formatDate(event.timestamp)}</span>
+              </div>
+              
+              <h3 className="text-xl font-semibold text-white mb-3 hover:text-emerald-400 cursor-pointer transition-colors">{event.description}</h3>
+              <p className="text-slate-300 mb-4 leading-relaxed">Market activity showing strong performance across commodity sectors with increased investor participation.</p>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-6 text-sm text-slate-400">
+                  <div className="flex items-center space-x-1">
+                    <Eye className="w-4 h-4" />
+                    <span>234 views</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="w-4 h-4" />
+                    <span>12 comments</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Activity className="w-4 h-4" />
+                    <span>2 hours ago</span>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  {event.amount && (
+                    <span className="text-emerald-400 font-medium">{formatCurrency(event.amount, event.currency || 'USD')}</span>
+                  )}
+                  <button className="text-slate-400 hover:text-white transition-colors">
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                  <button className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors">
+                    Read More →
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {/* Load More */}
+          <div className="text-center">
+            <button className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+              Load More Events
+            </button>
+          </div>
+        </div>
+        
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Live Market Data */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+              Live Market Data
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Coffee (Arabica)</span>
+                <div className="text-right">
+                  <p className="text-emerald-400 font-medium">$2.45/lb</p>
+                  <p className="text-emerald-400 text-xs">+5.2%</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Copper</span>
+                <div className="text-right">
+                  <p className="text-red-400 font-medium">$8,234/ton</p>
+                  <p className="text-red-400 text-xs">-2.1%</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Soybeans</span>
+                <div className="text-right">
+                  <p className="text-emerald-400 font-medium">$14.67/bu</p>
+                  <p className="text-emerald-400 text-xs">+1.8%</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Palm Oil</span>
+                <div className="text-right">
+                  <p className="text-yellow-400 font-medium">$1,123/ton</p>
+                  <p className="text-yellow-400 text-xs">+0.3%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Upcoming Events */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Upcoming Events</h3>
+            <div className="space-y-4">
+              <div className="border-l-4 border-emerald-500 pl-4 py-2">
+                <p className="text-white font-medium">Coffee Market Webinar</p>
+                <p className="text-slate-400 text-sm">March 18, 2024 • 3:00 PM</p>
+                <p className="text-emerald-400 text-xs">Free Registration</p>
+              </div>
+              <div className="border-l-4 border-blue-500 pl-4 py-2">
+                <p className="text-white font-medium">Copper Price Analysis</p>
+                <p className="text-slate-400 text-sm">March 22, 2024 • 1:00 PM</p>
+                <p className="text-blue-400 text-xs">Premium Event</p>
+              </div>
+              <div className="border-l-4 border-purple-500 pl-4 py-2">
+                <p className="text-white font-medium">New Asset Launch</p>
+                <p className="text-slate-400 text-sm">April 1, 2024 • 2:00 PM</p>
+                <p className="text-purple-400 text-xs">Exclusive Access</p>
+              </div>
+            </div>
+            <button className="w-full mt-4 bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+              View All Events
+            </button>
+          </div>
+          
+          {/* Market Alerts */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Market Alerts</h3>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-3 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
+                <div>
+                  <p className="text-red-400 text-sm font-medium">High Volatility</p>
+                  <p className="text-slate-300 text-xs">Coffee prices showing unusual activity</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                <div>
+                  <p className="text-emerald-400 text-sm font-medium">New Opportunities</p>
+                  <p className="text-slate-300 text-xs">5 new copper contracts available</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                <Clock className="w-4 h-4 text-yellow-400 mt-0.5" />
+                <div>
+                  <p className="text-yellow-400 text-sm font-medium">Maintenance</p>
+                  <p className="text-slate-300 text-xs">Scheduled for March 16, 2:00 AM</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Newsletter Signup */}
+          <div className="bg-gradient-to-br from-emerald-500/20 to-blue-500/20 backdrop-blur rounded-xl p-6 border border-emerald-500/30">
+            <h3 className="text-lg font-semibold text-white mb-4">Stay Updated</h3>
+            <p className="text-slate-300 text-sm mb-4">Get weekly market insights and platform updates delivered to your inbox.</p>
+            <div className="space-y-3">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+              <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors">
+                Subscribe
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCommunityTab = () => (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-4">Community Hub</h2>
+        <p className="text-slate-300">Connect, learn, and grow with the CashHash trading community</p>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main Community Feed */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Community Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur rounded-xl p-4 border border-emerald-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-400 text-2xl font-bold">2,847</p>
+                  <p className="text-slate-300 text-sm">Active Members</p>
+                </div>
+                <Users className="w-8 h-8 text-emerald-400" />
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur rounded-xl p-4 border border-blue-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-400 text-2xl font-bold">156</p>
+                  <p className="text-slate-300 text-sm">Discussions</p>
+                </div>
+                <Activity className="w-8 h-8 text-blue-400" />
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur rounded-xl p-4 border border-purple-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-400 text-2xl font-bold">89%</p>
+                  <p className="text-slate-300 text-sm">Success Rate</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-purple-400" />
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur rounded-xl p-4 border border-orange-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-orange-400 text-2xl font-bold">24/7</p>
+                  <p className="text-slate-300 text-sm">Support</p>
+                </div>
+                <HelpCircle className="w-8 h-8 text-orange-400" />
+              </div>
+            </div>
+          </div>
+          
+          {/* Discussion Categories */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Popular Discussions</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 hover:border-emerald-500/50 transition-colors cursor-pointer">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">CF</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Coffee Market Analysis</h4>
+                    <p className="text-slate-400 text-sm">by @TraderMike • 2 hours ago</p>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-sm mb-3">Arabica prices showing strong upward momentum. What are your thoughts on Q2 projections?</p>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>💬 23 replies</span>
+                  <span>👍 45 likes</span>
+                  <span>📈 Coffee</span>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 hover:border-blue-500/50 transition-colors cursor-pointer">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">CU</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Copper Investment Strategy</h4>
+                    <p className="text-slate-400 text-sm">by @MetalExpert • 4 hours ago</p>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-sm mb-3">Industrial demand for copper is increasing. Here's my analysis on upcoming opportunities...</p>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>💬 18 replies</span>
+                  <span>👍 32 likes</span>
+                  <span>🔶 Copper</span>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 hover:border-purple-500/50 transition-colors cursor-pointer">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">SB</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Soybean Season Outlook</h4>
+                    <p className="text-slate-400 text-sm">by @AgriTrader • 6 hours ago</p>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-sm mb-3">Weather patterns suggest interesting opportunities in the soybean market this season...</p>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>💬 15 replies</span>
+                  <span>👍 28 likes</span>
+                  <span>🌱 Soybeans</span>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 hover:border-orange-500/50 transition-colors cursor-pointer">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">PO</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Palm Oil Market Update</h4>
+                    <p className="text-slate-400 text-sm">by @OilAnalyst • 8 hours ago</p>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-sm mb-3">Southeast Asian palm oil production data released. Impact on global pricing...</p>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>💬 12 replies</span>
+                  <span>👍 21 likes</span>
+                  <span>🌴 Palm Oil</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Educational Content */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Learning Resources</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-lg p-4 border border-emerald-500/20">
+                <div className="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-white text-xl">📚</span>
+                </div>
+                <h4 className="text-white font-medium mb-2">Trading Basics</h4>
+                <p className="text-slate-400 text-sm mb-4">Learn the fundamentals of commodity trading and risk management.</p>
+                <button className="text-emerald-400 text-sm font-medium hover:text-emerald-300 transition-colors">
+                  Start Learning →
+                </button>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-lg p-4 border border-blue-500/20">
+                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-white text-xl">📊</span>
+                </div>
+                <h4 className="text-white font-medium mb-2">Market Analysis</h4>
+                <p className="text-slate-400 text-sm mb-4">Advanced techniques for analyzing commodity markets and trends.</p>
+                <button className="text-blue-400 text-sm font-medium hover:text-blue-300 transition-colors">
+                  Explore Tools →
+                </button>
+              </div>
+              
+              <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-lg p-4 border border-purple-500/20">
+                <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-white text-xl">🎯</span>
+                </div>
+                <h4 className="text-white font-medium mb-2">Strategy Guide</h4>
+                <p className="text-slate-400 text-sm mb-4">Proven strategies from successful commodity traders and experts.</p>
+                <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
+                  View Strategies →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Top Contributors */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Top Contributors</h3>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">1</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">@TraderMike</p>
+                  <p className="text-slate-400 text-xs">2,847 points • Coffee Expert</p>
+                </div>
+                <div className="text-emerald-400 text-sm">🏆</div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">2</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">@MetalExpert</p>
+                  <p className="text-slate-400 text-xs">2,156 points • Metals Specialist</p>
+                </div>
+                <div className="text-blue-400 text-sm">🥈</div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">3</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">@AgriTrader</p>
+                  <p className="text-slate-400 text-xs">1,923 points • Agriculture Focus</p>
+                </div>
+                <div className="text-orange-400 text-sm">🥉</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Quick Actions */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="space-y-3">
+              <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Start Discussion
+              </button>
+              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Ask Question
+              </button>
+              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+                Share Analysis
+              </button>
+            </div>
+          </div>
+          
+          {/* Community Guidelines */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Community Guidelines</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                <span>Be respectful and professional</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                <span>Share accurate information</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                <span>Help others learn and grow</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5" />
+                <span>No spam or self-promotion</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderHelpTab = () => (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-4">Help & Support Center</h2>
+        <p className="text-slate-300">Find answers, get support, and learn how to maximize your CashHash experience</p>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main Help Content */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Quick Help Categories */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur rounded-xl p-6 border border-emerald-500/20 text-center">
+              <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">🚀</span>
+              </div>
+              <h3 className="text-white font-semibold mb-2">Getting Started</h3>
+              <p className="text-slate-300 text-sm mb-4">Learn the basics of using CashHash platform</p>
+              <button className="text-emerald-400 text-sm font-medium hover:text-emerald-300 transition-colors">
+                View Guide →
+              </button>
+            </div>
+            
+            <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur rounded-xl p-6 border border-blue-500/20 text-center">
+              <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">💰</span>
+              </div>
+              <h3 className="text-white font-semibold mb-2">Trading Help</h3>
+              <p className="text-slate-300 text-sm mb-4">Understand trading features and strategies</p>
+              <button className="text-blue-400 text-sm font-medium hover:text-blue-300 transition-colors">
+                Learn More →
+              </button>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur rounded-xl p-6 border border-purple-500/20 text-center">
+              <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">🔧</span>
+              </div>
+              <h3 className="text-white font-semibold mb-2">Technical Support</h3>
+              <p className="text-slate-300 text-sm mb-4">Resolve technical issues and bugs</p>
+              <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
+                Get Help →
+              </button>
+            </div>
+          </div>
+          
+          {/* FAQ Section */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Frequently Asked Questions</h3>
+            <div className="space-y-4">
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div className="flex items-center justify-between cursor-pointer">
+                  <h4 className="text-white font-medium">How do I create my first invoice?</h4>
+                  <span className="text-slate-400">+</span>
+                </div>
+                <div className="mt-3 text-slate-300 text-sm">
+                  <p>To create an invoice, go to the 'Create Invoice' tab, fill in the commodity details, set your terms, and submit for review. Our team will verify and list it on the marketplace.</p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div className="flex items-center justify-between cursor-pointer">
+                  <h4 className="text-white font-medium">What are the fees for using CashHash?</h4>
+                  <span className="text-slate-400">+</span>
+                </div>
+                <div className="mt-3 text-slate-300 text-sm">
+                  <p>CashHash charges a 2% platform fee on successful transactions. There are no listing fees or monthly charges. You only pay when you make money.</p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div className="flex items-center justify-between cursor-pointer">
+                  <h4 className="text-white font-medium">How secure are my investments?</h4>
+                  <span className="text-slate-400">+</span>
+                </div>
+                <div className="mt-3 text-slate-300 text-sm">
+                  <p>All transactions are secured by Hedera Hashgraph technology. We use smart contracts, multi-signature wallets, and comprehensive insurance to protect your investments.</p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div className="flex items-center justify-between cursor-pointer">
+                  <h4 className="text-white font-medium">Can I withdraw my funds anytime?</h4>
+                  <span className="text-slate-400">+</span>
+                </div>
+                <div className="mt-3 text-slate-300 text-sm">
+                  <p>Yes, you can withdraw available funds anytime. Active investments are locked until maturity, but you can trade them on our secondary market.</p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div className="flex items-center justify-between cursor-pointer">
+                  <h4 className="text-white font-medium">What commodities can I trade?</h4>
+                  <span className="text-slate-400">+</span>
+                </div>
+                <div className="mt-3 text-slate-300 text-sm">
+                  <p>We support major agricultural commodities including coffee, soybeans, palm oil, rubber, and metals like copper and aluminum. More commodities are added regularly.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Video Tutorials */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-6">Video Tutorials</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="aspect-video bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <span className="text-white text-2xl">▶️</span>
+                    </div>
+                    <p className="text-white text-sm">Platform Overview</p>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h4 className="text-white font-medium mb-2">Getting Started with CashHash</h4>
+                  <p className="text-slate-400 text-sm mb-3">A comprehensive introduction to the platform and its features.</p>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>⏱️ 8 minutes</span>
+                    <span>👁️ 2,847 views</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="aspect-video bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <span className="text-white text-2xl">▶️</span>
+                    </div>
+                    <p className="text-white text-sm">Invoice Creation</p>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h4 className="text-white font-medium mb-2">How to Create Your First Invoice</h4>
+                  <p className="text-slate-400 text-sm mb-3">Step-by-step guide to creating and listing your commodity invoice.</p>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>⏱️ 12 minutes</span>
+                    <span>👁️ 1,923 views</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="aspect-video bg-gradient-to-br from-purple-500/20 to-purple-600/10 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <span className="text-white text-2xl">▶️</span>
+                    </div>
+                    <p className="text-white text-sm">Investment Guide</p>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h4 className="text-white font-medium mb-2">Smart Investment Strategies</h4>
+                  <p className="text-slate-400 text-sm mb-3">Learn how to evaluate and invest in commodity invoices effectively.</p>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>⏱️ 15 minutes</span>
+                    <span>👁️ 3,156 views</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="aspect-video bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <span className="text-white text-2xl">▶️</span>
+                    </div>
+                    <p className="text-white text-sm">Risk Management</p>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h4 className="text-white font-medium mb-2">Understanding Risks & Rewards</h4>
+                  <p className="text-slate-400 text-sm mb-3">Essential risk management techniques for commodity trading.</p>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>⏱️ 10 minutes</span>
+                    <span>👁️ 2,234 views</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Contact Support */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Contact Support</h3>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-emerald-500/50 transition-colors cursor-pointer">
+                <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm">💬</span>
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Live Chat</p>
+                  <p className="text-slate-400 text-xs">Available 24/7</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-blue-500/50 transition-colors cursor-pointer">
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm">📧</span>
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Email Support</p>
+                  <p className="text-slate-400 text-xs">support@cashhash.com</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-purple-500/50 transition-colors cursor-pointer">
+                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm">📞</span>
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Phone Support</p>
+                  <p className="text-slate-400 text-xs">+1 (555) 123-4567</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* System Status */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">System Status</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">Platform</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                  <span className="text-emerald-400 text-sm">Operational</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">Trading Engine</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                  <span className="text-emerald-400 text-sm">Operational</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">Hedera Network</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                  <span className="text-emerald-400 text-sm">Operational</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">API Services</span>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                  <span className="text-yellow-400 text-sm">Maintenance</span>
+                </div>
+              </div>
+            </div>
+            
+            <button className="w-full mt-4 text-slate-400 text-sm hover:text-white transition-colors">
+              View Status Page →
+            </button>
+          </div>
+          
+          {/* Quick Links */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Links</h3>
+            <div className="space-y-2">
+              <button className="w-full text-left text-slate-300 hover:text-white text-sm py-2 transition-colors">
+                📖 User Manual
+              </button>
+              <button className="w-full text-left text-slate-300 hover:text-white text-sm py-2 transition-colors">
+                🔒 Security Guide
+              </button>
+              <button className="w-full text-left text-slate-300 hover:text-white text-sm py-2 transition-colors">
+                💡 Feature Requests
+              </button>
+              <button className="w-full text-left text-slate-300 hover:text-white text-sm py-2 transition-colors">
+                🐛 Report Bug
+              </button>
+              <button className="w-full text-left text-slate-300 hover:text-white text-sm py-2 transition-colors">
+                📊 API Documentation
+              </button>
+            </div>
+          </div>
+          
+          {/* Feedback */}
+          <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Send Feedback</h3>
+            <textarea 
+              className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-white text-sm resize-none focus:border-emerald-500 focus:outline-none" 
+              rows={3} 
+              placeholder="Tell us how we can improve..."
+            ></textarea>
+            <button className="w-full mt-3 bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg text-sm transition-colors">
+              Send Feedback
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'market':
+        return renderMarketTab();
+      case 'create':
+        return renderCreateTab();
+      case 'portfolio':
+        return renderPortfolioTab();
+      case 'events':
+        return renderEventsTab();
+      case 'community':
+        return renderCommunityTab();
+      case 'help':
+        return renderHelpTab();
+      default:
+        return renderMarketTab();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <HorizontalTabs activeTab={activeTab} onTabChange={handleTabChange} />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {renderTabContent()}
+      </div>
+
+      {/* Investment Modal */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 border border-slate-700">
+            <h3 className="text-xl font-semibold text-white mb-4">Invest in {selectedInvoice.commodity}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Investment Amount (USD)</label>
+                <input
+                  type="number"
+                  value={investAmount}
+                  onChange={(e) => setInvestAmount(e.target.value)}
+                  placeholder="10000"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                />
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Expected Return:</span>
+                  <span className="text-emerald-400">{selectedInvoice.yield}% APY</span>
+                </div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-slate-400">Maturity:</span>
+                  <span className="text-white">{selectedInvoice.tenor} days</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (investAmount) {
+                      handleInvest(selectedInvoice.id, parseFloat(investAmount));
+                      setSelectedInvoice(null);
+                      setInvestAmount('');
+                    }
+                  }}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Confirm Investment
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedInvoice(null);
+                    setInvestAmount('');
+                  }}
+                  className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
