@@ -4,20 +4,20 @@ import { ArrowRight, Shield, Zap, Globe, CheckCircle, FileText, Users, TrendingU
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-black/20 backdrop-blur border-b border-white/10">
+      <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">C</span>
               </div>
-              <span className="text-white font-bold text-xl">CashHash</span>
+              <span className="text-slate-900 font-bold text-xl">CashHash</span>
             </div>
             <Link
               href="/dashboard"
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
             >
               Launch App
             </Link>
@@ -28,25 +28,25 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="pt-32 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
+          <h1 className="text-5xl md:text-7xl font-bold text-slate-900 mb-6">
             Instant Liquidity for
-            <span className="bg-gradient-to-r from-emerald-400 to-blue-500 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
               {" "}Export Invoices
             </span>
           </h1>
-          <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
+          <p className="text-xl text-slate-600 mb-8 max-w-3xl mx-auto">
             Powered by Hedera Hashgraph. Transform your export invoices into tradeable assets 
             and get instant funding through decentralized finance.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors"
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors"
             >
               Get Started
               <ArrowRight className="w-5 h-5" />
             </Link>
-            <button className="inline-flex items-center gap-2 border border-white/20 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white/5 transition-colors">
+            <button className="inline-flex items-center gap-2 border border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-slate-50 transition-colors">
               Watch Demo
             </button>
           </div>
@@ -57,31 +57,31 @@ export default function LandingPage() {
       <section className="relative max-w-7xl mx-auto px-4 py-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="text-center space-y-2">
-            <div className="text-3xl md:text-4xl font-bold text-white">$2.5T</div>
-            <div className="text-slate-400">Global trade finance gap</div>
+            <div className="text-3xl md:text-4xl font-bold text-slate-900">$2.5T</div>
+            <div className="text-slate-600">Global trade finance gap</div>
           </div>
           <div className="text-center space-y-2">
-            <div className="text-3xl md:text-4xl font-bold text-white">24h</div>
-            <div className="text-slate-400">Average funding time</div>
+            <div className="text-3xl md:text-4xl font-bold text-slate-900">24h</div>
+            <div className="text-slate-600">Average funding time</div>
           </div>
           <div className="text-center space-y-2">
-            <div className="text-3xl md:text-4xl font-bold text-white">100%</div>
-            <div className="text-slate-400">On-chain transparency</div>
+            <div className="text-3xl md:text-4xl font-bold text-slate-900">100%</div>
+            <div className="text-slate-600">On-chain transparency</div>
           </div>
           <div className="text-center space-y-2">
-            <div className="text-3xl md:text-4xl font-bold text-white">12%+</div>
-            <div className="text-slate-400">Average annual yield</div>
+            <div className="text-3xl md:text-4xl font-bold text-slate-900">12%+</div>
+            <div className="text-slate-600">Average annual yield</div>
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-black/20">
+      <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-white text-center mb-4">
+          <h2 className="text-4xl font-bold text-slate-900 text-center mb-4">
             How CashHash Works
           </h2>
-          <p className="text-xl text-slate-300 text-center mb-16 max-w-3xl mx-auto">
+          <p className="text-xl text-slate-600 text-center mb-16 max-w-3xl mx-auto">
             A revolutionary platform that bridges traditional export finance with blockchain technology
           </p>
           
@@ -91,8 +91,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10">
                 <FileText className="w-8 h-8 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">1. Upload Invoice</h3>
-              <p className="text-slate-300">
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">1. Upload Invoice</h3>
+              <p className="text-slate-600">
                 Exporters upload their verified export invoices to the platform
               </p>
               {/* Connector Line */}
@@ -102,8 +102,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10">
                 <Zap className="w-8 h-8 text-blue-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">2. Tokenize Asset</h3>
-              <p className="text-slate-300">
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">2. Tokenize Asset</h3>
+              <p className="text-slate-600">
                 Invoice is converted into an NFT with HBAR Bond backing on Hedera
               </p>
               <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-blue-400/50 to-transparent -z-10"></div>
@@ -112,8 +112,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10">
                 <Users className="w-8 h-8 text-purple-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">3. Investor Funding</h3>
-              <p className="text-slate-300">
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">3. Investor Funding</h3>
+              <p className="text-slate-600">
                 Investors purchase bonds, providing instant liquidity to exporters
               </p>
               <div className="hidden md:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-purple-400/50 to-transparent -z-10"></div>
@@ -122,8 +122,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="w-8 h-8 text-orange-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">4. Auto Settlement</h3>
-              <p className="text-slate-300">
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">4. Auto Settlement</h3>
+              <p className="text-slate-600">
                 Smart contracts distribute returns when buyers pay invoices
               </p>
             </div>
@@ -132,53 +132,53 @@ export default function LandingPage() {
           {/* Detailed Explanation */}
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h3 className="text-3xl font-bold text-white mb-6">For Exporters</h3>
+              <h3 className="text-3xl font-bold text-slate-900 mb-6">For Exporters</h3>
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-emerald-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">Instant Cash Flow</h4>
-                    <p className="text-slate-300">Get up to 80% of invoice value immediately instead of waiting 30-90 days</p>
+                    <h4 className="text-lg font-semibold text-slate-900">Instant Cash Flow</h4>
+                    <p className="text-slate-600">Get up to 80% of invoice value immediately instead of waiting 30-90 days</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-emerald-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">No Credit Checks</h4>
-                    <p className="text-slate-300">Funding based on invoice quality, not your credit history</p>
+                    <h4 className="text-lg font-semibold text-slate-900">No Credit Checks</h4>
+                    <p className="text-slate-600">Funding based on invoice quality, not your credit history</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-emerald-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">Global Access</h4>
-                    <p className="text-slate-300">Access international investors through blockchain technology</p>
+                    <h4 className="text-lg font-semibold text-slate-900">Global Access</h4>
+                    <p className="text-slate-600">Access international investors through blockchain technology</p>
                   </div>
                 </div>
               </div>
             </div>
             <div>
-              <h3 className="text-3xl font-bold text-white mb-6">For Investors</h3>
+              <h3 className="text-3xl font-bold text-slate-900 mb-6">For Investors</h3>
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">Fixed Returns</h4>
-                    <p className="text-slate-300">Earn 8-15% annual returns on verified export invoices</p>
+                    <h4 className="text-lg font-semibold text-slate-900">Fixed Returns</h4>
+                    <p className="text-slate-600">Earn 8-15% annual returns on verified export invoices</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">Diversified Portfolio</h4>
-                    <p className="text-slate-300">Invest across multiple commodities and countries</p>
+                    <h4 className="text-lg font-semibold text-slate-900">Diversified Portfolio</h4>
+                    <p className="text-slate-600">Invest across multiple commodities and countries</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
                   <div>
-                    <h4 className="text-lg font-semibold text-white">Transparent Tracking</h4>
-                    <p className="text-slate-300">Real-time updates on invoice status and payments</p>
+                    <h4 className="text-lg font-semibold text-slate-900">Transparent Tracking</h4>
+                    <p className="text-slate-600">Real-time updates on invoice status and payments</p>
                   </div>
                 </div>
               </div>
@@ -190,14 +190,14 @@ export default function LandingPage() {
       {/* Technology Stack */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-white text-center mb-4">
+          <h2 className="text-4xl font-bold text-slate-900 text-center mb-4">
             Built on Hedera Hashgraph
           </h2>
-          <p className="text-xl text-slate-300 text-center mb-16 max-w-3xl mx-auto">
+          <p className="text-xl text-slate-600 text-center mb-16 max-w-3xl mx-auto">
             Enterprise-grade blockchain technology ensuring security, speed, and sustainability
           </p>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white/5 backdrop-blur rounded-xl p-8 border border-white/10 text-center">
+            <div className="bg-white backdrop-blur rounded-xl p-8 border border-slate-200 shadow-lg text-center">
               <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileText className="w-8 h-8 text-emerald-400" />
               </div>

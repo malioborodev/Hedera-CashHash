@@ -143,7 +143,7 @@ export function HederaStatusIndicator() {
         <div className="border-t pt-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Data Storage</span>
-            <Badge variant="outline" className="border-green-500 text-green-700">
+            <Badge variant="outline" className="border-green-600 text-green-800 bg-green-50">
               100% Hedera-Native
             </Badge>
           </div>

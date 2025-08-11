@@ -304,7 +304,7 @@ export default {
   ],
   
   // Dark mode configuration
-  darkMode: 'class',
+  // Dark mode disabled - using light theme only
   
   // Important selector strategy
   important: false,
