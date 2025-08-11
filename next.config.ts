@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
     config.externals = [...config.externals, { canvas: 'canvas' }]
     return config
   },
+  reactStrictMode: true,
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:3001/api/:path*',
+      },
+    ]
+  },
 }
 
 export default nextConfig

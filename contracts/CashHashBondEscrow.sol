@@ -1,150 +1,211 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./CashHashInvoice.sol";
 
 contract CashHashBondEscrow is ReentrancyGuard, Ownable {
-    CashHashInvoice public immutable invoiceContract;
-    
-    struct Bond {
-        uint256 amount;
+    struct Escrow {
+        uint256 invoiceId;
+        address investor;
         address exporter;
-        uint256 timestamp;
-        bool isActive;
-        bool isSlashed;
+        uint256 amount;
+        uint256 createdAt;
+        uint256 releaseDate;
+        bool isReleased;
+        bool isDefaulted;
+        uint256 platformFee;
     }
+
+    struct RiskProfile {
+        uint256 creditScore;
+        uint256 defaultRate;
+        uint256 collateralRatio;
+        bool isVerified;
+    }
+
+    mapping(uint256 => Escrow) public escrows;
+    mapping(address => RiskProfile) public riskProfiles;
+    mapping(address => uint256[]) public userEscrows;
+    mapping(uint256 => uint256) public invoiceToEscrow;
     
-    mapping(uint256 => Bond) public bonds;
-    mapping(address => uint256[]) public exporterBonds;
-    
-    uint256 public constant MIN_BOND_HBAR = 300 * 1e8; // 300 HBAR in tinybars
-    uint256 public constant MAX_BOND_HBAR = 5000 * 1e8; // 5000 HBAR in tinybars
-    uint256 public constant BOND_RATE_BPS = 100; // 1% of invoice amount
-    
-    event BondPosted(
+    uint256 public nextEscrowId = 1;
+    uint256 public platformFeeBPS = 75;
+    address public platformWallet;
+    address public invoiceToken;
+
+    event EscrowCreated(
+        uint256 indexed escrowId,
         uint256 indexed invoiceId,
-        address indexed exporter,
+        address indexed investor,
+        address exporter,
         uint256 amount,
-        uint256 timestamp
+        uint256 releaseDate
     );
     
-    event BondRefunded(
-        uint256 indexed invoiceId,
+    event EscrowReleased(
+        uint256 indexed escrowId,
         address indexed exporter,
-        uint256 amount,
-        uint256 timestamp
+        uint256 amount
     );
     
-    event BondSlashed(
-        uint256 indexed invoiceId,
-        address indexed exporter,
-        uint256 amount,
-        uint256 timestamp
+    event EscrowDefaulted(
+        uint256 indexed escrowId,
+        address indexed investor,
+        uint256 amount
     );
     
-    constructor(address _invoiceContract) {
-        invoiceContract = CashHashInvoice(_invoiceContract);
+    event RiskProfileUpdated(
+        address indexed exporter,
+        uint256 creditScore,
+        uint256 defaultRate,
+        uint256 collateralRatio
+    );
+
+    constructor(address _invoiceToken, address _platformWallet) {
+        invoiceToken = _invoiceToken;
+        platformWallet = _platformWallet;
     }
-    
-    function calculateBondAmount(uint256 amountUSD) public pure returns (uint256) {
-        // Convert USD to HBAR (assuming 1 HBAR = $0.10 for calculation)
-        uint256 bondInHBAR = (amountUSD * BOND_RATE_BPS * 1e8) / (10000 * 10); // 1% in HBAR
-        
-        // Clamp between MIN and MAX
-        if (bondInHBAR < MIN_BOND_HBAR) {
-            return MIN_BOND_HBAR;
-        } else if (bondInHBAR > MAX_BOND_HBAR) {
-            return MAX_BOND_HBAR;
-        }
-        return bondInHBAR;
-    }
-    
-    function postExporterBond(uint256 invoiceId) external payable nonReentrant {
-        require(invoiceContract.ownerOf(invoiceId) == msg.sender, "Not invoice owner");
-        require(bonds[invoiceId].amount == 0, "Bond already posted");
-        
-        CashHashInvoice.InvoiceTerms memory terms = invoiceContract.getInvoiceTerms(invoiceId);
-        uint256 requiredBond = calculateBondAmount(terms.amountUSD);
-        
-        require(msg.value >= requiredBond, "Insufficient bond amount");
-        
-        bonds[invoiceId] = Bond({
-            amount: msg.value,
-            exporter: msg.sender,
-            timestamp: block.timestamp,
-            isActive: true,
-            isSlashed: false
+
+    function createEscrow(
+        uint256 invoiceId,
+        address investor,
+        address exporter,
+        uint256 amount,
+        uint256 releaseDate
+    ) external returns (uint256) {
+        require(amount > 0, "Amount must be positive");
+        require(releaseDate > block.timestamp, "Release date must be in future");
+        require(investor != exporter, "Investor and exporter cannot be same");
+        require(invoiceToEscrow[invoiceId] == 0, "Escrow already exists for invoice");
+
+        uint256 escrowId = nextEscrowId++;
+        uint256 fee = (amount * platformFeeBPS) / 10000;
+
+        escrows[escrowId] = Escrow({
+            invoiceId: invoiceId,
+            investor: investor,
+            exporter: exporter,
+            amount: amount,
+            createdAt: block.timestamp,
+            releaseDate: releaseDate,
+            isReleased: false,
+            isDefaulted: false,
+            platformFee: fee
         });
-        
-        exporterBonds[msg.sender].push(invoiceId);
-        
-        // Refund excess if any
-        if (msg.value > requiredBond) {
-            payable(msg.sender).transfer(msg.value - requiredBond);
-            bonds[invoiceId].amount = requiredBond;
+
+        userEscrows[investor].push(escrowId);
+        userEscrows[exporter].push(escrowId);
+        invoiceToEscrow[invoiceId] = escrowId;
+
+        emit EscrowCreated(escrowId, invoiceId, investor, exporter, amount, releaseDate);
+        return escrowId;
+    }
+
+    function releaseEscrow(uint256 escrowId) external nonReentrant {
+        Escrow storage escrow = escrows[escrowId];
+        require(escrow.amount > 0, "Escrow does not exist");
+        require(!escrow.isReleased, "Escrow already released");
+        require(!escrow.isDefaulted, "Escrow defaulted");
+        require(block.timestamp >= escrow.releaseDate, "Release date not reached");
+
+        escrow.isReleased = true;
+
+        uint256 platformAmount = escrow.platformFee;
+        uint256 exporterAmount = escrow.amount - platformAmount;
+
+        IERC20(invoiceToken).transferFrom(
+            address(this),
+            escrow.exporter,
+            exporterAmount
+        );
+
+        IERC20(invoiceToken).transferFrom(
+            address(this),
+            platformWallet,
+            platformAmount
+        );
+
+        emit EscrowReleased(escrowId, escrow.exporter, exporterAmount);
+    }
+
+    function markDefaulted(uint256 escrowId) external {
+        Escrow storage escrow = escrows[escrowId];
+        require(escrow.amount > 0, "Escrow does not exist");
+        require(!escrow.isReleased, "Escrow already released");
+        require(!escrow.isDefaulted, "Escrow already defaulted");
+        require(block.timestamp > escrow.releaseDate, "Release date not reached");
+
+        escrow.isDefaulted = true;
+
+        uint256 investorAmount = escrow.amount;
+
+        IERC20(invoiceToken).transferFrom(
+            address(this),
+            escrow.investor,
+            investorAmount
+        );
+
+        emit EscrowDefaulted(escrowId, escrow.investor, investorAmount);
+    }
+
+    function updateRiskProfile(
+        address exporter,
+        uint256 creditScore,
+        uint256 defaultRate,
+        uint256 collateralRatio
+    ) external onlyOwner {
+        require(creditScore <= 1000, "Invalid credit score");
+        require(defaultRate <= 10000, "Invalid default rate");
+        require(collateralRatio <= 10000, "Invalid collateral ratio");
+
+        riskProfiles[exporter] = RiskProfile({
+            creditScore: creditScore,
+            defaultRate: defaultRate,
+            collateralRatio: collateralRatio,
+            isVerified: true
+        });
+
+        emit RiskProfileUpdated(exporter, creditScore, defaultRate, collateralRatio);
+    }
+
+    function calculateRiskAdjustedYield(
+        address exporter,
+        uint256 baseYield
+    ) external view returns (uint256) {
+        RiskProfile memory profile = riskProfiles[exporter];
+        if (!profile.isVerified) {
+            return baseYield;
         }
-        
-        emit BondPosted(invoiceId, msg.sender, bonds[invoiceId].amount, block.timestamp);
+
+        uint256 riskAdjustment = (profile.defaultRate * baseYield) / 10000;
+        return baseYield - riskAdjustment;
     }
-    
-    function refundBond(uint256 invoiceId) external nonReentrant onlyOwner {
-        Bond storage bond = bonds[invoiceId];
-        require(bond.isActive, "Bond not active");
-        require(!bond.isSlashed, "Bond already slashed");
-        
-        uint256 refundAmount = bond.amount;
-        address exporter = bond.exporter;
-        
-        bond.isActive = false;
-        bond.amount = 0;
-        
-        payable(exporter).transfer(refundAmount);
-        
-        emit BondRefunded(invoiceId, exporter, refundAmount, block.timestamp);
+
+    function getEscrow(uint256 escrowId) external view returns (Escrow memory) {
+        return escrows[escrowId];
     }
-    
-    function slashBond(uint256 invoiceId) external nonReentrant onlyOwner {
-        Bond storage bond = bonds[invoiceId];
-        require(bond.isActive, "Bond not active");
-        require(!bond.isSlashed, "Bond already slashed");
-        
-        uint256 slashAmount = bond.amount;
-        address exporter = bond.exporter;
-        
-        bond.isActive = false;
-        bond.isSlashed = true;
-        // Amount stays in contract (slashed)
-        
-        emit BondSlashed(invoiceId, exporter, slashAmount, block.timestamp);
+
+    function getUserEscrows(address user) external view returns (uint256[] memory) {
+        return userEscrows[user];
     }
-    
-    function getBond(uint256 invoiceId) external view returns (Bond memory) {
-        return bonds[invoiceId];
+
+    function getInvoiceEscrow(uint256 invoiceId) external view returns (uint256) {
+        return invoiceToEscrow[invoiceId];
     }
-    
-    function getExporterBonds(address exporter) external view returns (uint256[] memory) {
-        return exporterBonds[exporter];
+
+    function getRiskProfile(address exporter) external view returns (RiskProfile memory) {
+        return riskProfiles[exporter];
     }
-    
-    function isBondPosted(uint256 invoiceId) external view returns (bool) {
-        return bonds[invoiceId].isActive;
+
+    function updatePlatformFee(uint256 newFeeBPS) external onlyOwner {
+        require(newFeeBPS <= 1000, "Fee too high");
+        platformFeeBPS = newFeeBPS;
     }
-    
-    function getBondAmount(uint256 invoiceId) external view returns (uint256) {
-        return bonds[invoiceId].amount;
-    }
-    
-    // Emergency withdrawal function for slashed bonds (owner only)
-    function withdrawSlashedFunds() external onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "No funds to withdraw");
-        payable(owner()).transfer(balance);
-    }
-    
-    // View function to check total slashed amount
-    function getTotalSlashedAmount() external view returns (uint256) {
-        return address(this).balance;
+
+    function updatePlatformWallet(address newWallet) external onlyOwner {
+        require(newWallet != address(0), "Invalid address");
+        platformWallet = newWallet;
     }
 }

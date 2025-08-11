@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown, Clock, Shield, MapPin, FileText, ExternalLink, Filter, Search, ChevronDown, Wallet, AlertCircle, Upload, DollarSign, Activity, PlusCircle, Briefcase, BarChart3, Eye, Download, CheckCircle, Users } from "lucide-react";
 import { HorizontalTabs } from "../_components/HorizontalTabs";
+import { HederaStatusIndicator } from "@/components/ui/hedera-status";
 
 // Interface definitions
 interface Invoice {
@@ -190,6 +191,11 @@ export default function DashboardPage() {
 
   const renderMarketTab = () => (
     <div className="space-y-6">
+      {/* Hedera Status */}
+      <div className="grid grid-cols-1 gap-6">
+        <HederaStatusIndicator />
+      </div>
+
       {/* Market Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur rounded-xl p-6 border border-emerald-500/20">

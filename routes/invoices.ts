@@ -11,16 +11,16 @@ function ok<T>(data: T) { return { success: true, data }; }
 function err(message: string) { return { success: false, error: message }; }
 
 // List invoices with optional status filter
-invoicesRouter.get('/', (req, res) => {
+invoicesRouter.get('/', async (req, res) => {
   const { status } = req.query as { status?: string };
-  const items = db.invoice.list(status as InvoiceStatus | undefined);
+  const items = await db.invoice.list(status as InvoiceStatus | undefined);
   res.json(ok(items));
 });
 
 // Get single invoice by id
-invoicesRouter.get('/:id', (req, res) => {
+invoicesRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
-  const inv = db.invoice.get(id);
+  const inv = await db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   res.json(ok(inv));
 });
@@ -31,30 +31,27 @@ invoicesRouter.post('/', async (req, res) => {
   if (!sellerId || !dueDate || !amount || !currency) {
     return res.status(400).json(err('sellerId, dueDate, amount, currency required'));
   }
-  const inv = db.invoice.create({ sellerId, buyerId, dueDate, amount, currency, yieldBps });
-  db.event.publish(EventType.INVOICE_CREATED, { invoiceId: inv.id, amount, currency, buyerId, yieldBps });
-
-  // Hedera-native side effects (best-effort)
+  
   try {
-    const result = await HederaOps.createInvoice(inv);
-    if (result?.nft?.tokenId || result?.ft?.tokenId) {
-      db.invoice.update(inv.id, { nftId: result?.nft?.tokenId, ftId: result?.ft?.tokenId });
-    }
+    // 100% Hedera-native creation with HTS/HCS/HFS
+    const inv = await db.invoice.create({ sellerId, buyerId, dueDate, amount, currency, yieldBps });
+    await db.event.publish(EventType.INVOICE_CREATED, { invoiceId: inv.id, amount, currency, buyerId, yieldBps });
+    
+    res.status(201).json(ok(inv));
   } catch (e) {
-    console.warn('[invoices] HederaOps.createInvoice skipped:', (e as Error).message);
+    console.error('[invoices] Hedera-native create failed:', (e as Error).message);
+    res.status(500).json(err('Failed to create invoice on Hedera network'));
   }
-
-  res.status(201).json(ok(db.invoice.get(inv.id)!));
 });
 
 // Upload invoice file and attach to invoice
 invoicesRouter.post('/:id/upload', upload.single('file'), async (req, res) => {
   const { id } = req.params;
   if (!req.file) return res.status(400).json(err('file required'));
-  const inv = db.invoice.get(id);
+  const inv = await db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   const hash = hashFile(req.file.buffer);
-  const rec = db.file.create({
+  const rec = await db.file.create({
     invoiceId: id,
     filename: req.file.originalname,
     mimetype: req.file.mimetype,
@@ -62,8 +59,8 @@ invoicesRouter.post('/:id/upload', upload.single('file'), async (req, res) => {
     sha256: hash,
     buffer: req.file.buffer,
   });
-  const updated = db.invoice.update(id, { fileId: rec.id });
-  db.event.publish(EventType.FILE_UPLOADED, { invoiceId: id, fileId: rec.id, sha256: hash }, id);
+  const updated = await db.invoice.update(id, { fileId: rec.id });
+  await db.event.publish(EventType.FILE_UPLOADED, { invoiceId: id, fileId: rec.id, sha256: hash }, id);
 
   // Hedera-native: publish lifecycle event and optionally upload to File Service
   try {
@@ -76,31 +73,31 @@ invoicesRouter.post('/:id/upload', upload.single('file'), async (req, res) => {
 });
 
 // List file metadata for an invoice
-invoicesRouter.get('/:id/file', (req, res) => {
+invoicesRouter.get('/:id/file', async (req, res) => {
   const { id } = req.params;
-  const file = db.file.getByInvoice(id);
+  const file = await db.file.getByInvoice(id);
   if (!file) return res.status(404).json(err('No file for invoice'));
-  const { buffer, ...meta } = file;
+  const { buffer, ...meta } = file as any;
   res.json(ok(meta));
 });
 
 // Download file
-invoicesRouter.get('/:id/file/download', (req, res) => {
+invoicesRouter.get('/:id/file/download', async (req, res) => {
   const { id } = req.params;
-  const file = db.file.getByInvoice(id);
+  const file = await db.file.getByInvoice(id);
   if (!file) return res.status(404).json(err('No file for invoice'));
   res.setHeader('Content-Type', file.mimetype);
   res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
-  res.send(file.buffer);
+  res.send((file as any).buffer);
 });
 
 // Update status to LISTED and publish event
 invoicesRouter.post('/:id/list', async (req, res) => {
   const { id } = req.params;
-  const inv = db.invoice.get(id);
+  const inv = await db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
-  const updated = db.invoice.update(id, { status: InvoiceStatus.LISTED });
-  db.event.publish(EventType.INVOICE_LISTED, { invoiceId: id }, id);
+  const updated = await db.invoice.update(id, { status: InvoiceStatus.LISTED });
+  await db.event.publish(EventType.INVOICE_LISTED, { invoiceId: id }, id);
 
   try {
     await HederaOps.publishLifecycleEvent('INVOICE_LISTED', id, {});
@@ -116,18 +113,18 @@ invoicesRouter.post('/:id/invest', async (req, res) => {
   const { id } = req.params;
   const { investorId, amount } = req.body as { investorId?: string; amount?: number };
   if (!investorId || !amount) return res.status(400).json(err('investorId and amount required'));
-  const inv = db.invoice.get(id);
+  const inv = await db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
-  const invst = db.investment.create({ invoiceId: id, investorId, amount });
-  db.event.publish(EventType.INVESTMENT_MADE, { invoiceId: id, investmentId: invst.id, amount, investorId }, id);
+  const invst = await db.investment.create({ invoiceId: id, investorId, amount });
+  await db.event.publish(EventType.INVESTMENT_MADE, { invoiceId: id, investmentId: invst.id, amount, investorId }, id);
 
   // Update funding progress and status
-  const allInvestments = db.investment.list(id);
+  const allInvestments = await db.investment.list(id);
   const total = allInvestments.reduce((s, it) => s + (it.amount || 0), 0);
   const fundedPct = Math.min(100, Math.round((total / (inv.amount || 1)) * 100));
   let newStatus: InvoiceStatus | undefined;
   if (fundedPct >= 100) newStatus = InvoiceStatus.FUNDED; else if (fundedPct > 0) newStatus = InvoiceStatus.INVESTING;
-  const updated = db.invoice.update(id, { fundedPct, status: newStatus || inv.status });
+  const updated = await db.invoice.update(id, { fundedPct, status: newStatus || inv.status });
 
   // Hedera token transfer if FT exists, otherwise only publish event
   try {
@@ -137,7 +134,7 @@ invoicesRouter.post('/:id/invest', async (req, res) => {
       await HederaOps.publishLifecycleEvent('INVESTMENT_MADE', id, { investorId, amount, fundedPct });
     }
     if (newStatus === InvoiceStatus.FUNDED) {
-      db.event.publish(EventType.INVOICE_FUNDED, { invoiceId: id, fundedPct: 100 }, id);
+      await db.event.publish(EventType.INVOICE_FUNDED, { invoiceId: id, fundedPct: 100 }, id);
       await HederaOps.publishLifecycleEvent('INVOICE_FUNDED', id, { fundedPct: 100 });
     }
   } catch (e) {
@@ -150,12 +147,12 @@ invoicesRouter.post('/:id/invest', async (req, res) => {
 // Mark invoice as PAID (simulate settlement) and publish payouts
 invoicesRouter.post('/:id/pay', async (req, res) => {
   const { id } = req.params;
-  const inv = db.invoice.get(id);
+  const inv = await db.invoice.get(id);
   if (!inv) return res.status(404).json(err('Invoice not found'));
   if (inv.status !== InvoiceStatus.FUNDED) {
     return res.status(400).json(err('Invoice must be FUNDED to mark as PAID'));
   }
-  const allInvestments = db.investment.list(id);
+  const allInvestments = await db.investment.list(id);
   const total = allInvestments.reduce((s, it) => s + (it.amount || 0), 0) || 1;
   const yieldBps = inv.yieldBps || 0;
   const grossYield = (inv.amount * yieldBps) / 10000;
@@ -167,8 +164,8 @@ invoicesRouter.post('/:id/pay', async (req, res) => {
     return { investorId: it.investorId, principal, yield: yieldAmt, total: principal + yieldAmt };
   });
 
-  const updated = db.invoice.update(id, { status: InvoiceStatus.PAID });
-  db.event.publish(EventType.INVOICE_PAID, { invoiceId: id, payouts }, id);
+  const updated = await db.invoice.update(id, { status: InvoiceStatus.PAID });
+  await db.event.publish(EventType.INVOICE_PAID, { invoiceId: id, payouts }, id);
 
   try {
     await HederaOps.publishLifecycleEvent('INVOICE_PAID', id, { payoutsCount: payouts.length });

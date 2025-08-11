@@ -1,183 +1,163 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract CashHashInvoice is ERC721, Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
-    
-    struct InvoiceTerms {
-        uint256 amountUSD;
-        uint256 tenorDays;
-        uint256 yieldBps; // basis points
-        uint256 bondHBAR;
-        string commodity;
-        string country;
-        string[] documentHashes;
-        bool isListed;
-        uint256 createdAt;
-        uint256 maturityDate;
+contract CashHashInvoice is ERC20, ReentrancyGuard, Ownable {
+    struct Invoice {
+        uint256 amount;
+        uint256 dueDate;
+        address debtor;
+        address creditor;
+        bool isPaid;
+        bool isDefaulted;
+        string documentHash;
+        uint256 platformFee;
     }
-    
-    struct FractionalToken {
-        address tokenAddress;
-        uint256 totalSupply;
-        uint256 unitPrice; // in USD cents
-        uint256 fundedAmount;
+
+    struct Bond {
+        uint256 invoiceId;
+        address investor;
+        uint256 amount;
+        uint256 postedDate;
         bool isActive;
     }
+
+    mapping(uint256 => Invoice) public invoices;
+    mapping(uint256 => Bond) public bonds;
+    mapping(address => uint256[]) public userInvoices;
+    mapping(address => uint256[]) public userBonds;
     
-    mapping(uint256 => InvoiceTerms) public invoiceTerms;
-    mapping(uint256 => FractionalToken) public fractionalTokens;
-    mapping(uint256 => address) public exporters;
-    
-    event InvoiceCreated(
-        uint256 indexed tokenId,
-        address indexed exporter,
-        uint256 amountUSD,
-        string commodity,
-        string country
-    );
-    
-    event FractionalTokenMinted(
-        uint256 indexed invoiceId,
-        address indexed tokenAddress,
-        uint256 totalSupply,
-        uint256 unitPrice
-    );
-    
-    event TermsUpdated(
-        uint256 indexed tokenId,
-        uint256 yieldBps,
-        uint256 bondHBAR
-    );
-    
-    event DocumentAdded(
-        uint256 indexed tokenId,
-        string documentHash
-    );
-    
-    event ListingEnabled(
-        uint256 indexed tokenId,
-        uint256 timestamp
-    );
-    
-    constructor() ERC721("CashHash Invoice", "CHI") {}
-    
-    function createInvoice(
-        address exporter,
-        uint256 amountUSD,
-        uint256 tenorDays,
-        uint256 yieldBps,
-        uint256 bondHBAR,
-        string memory commodity,
-        string memory country,
-        string[] memory documentHashes
-    ) external returns (uint256) {
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
-        
-        _mint(exporter, newTokenId);
-        
-        invoiceTerms[newTokenId] = InvoiceTerms({
-            amountUSD: amountUSD,
-            tenorDays: tenorDays,
-            yieldBps: yieldBps,
-            bondHBAR: bondHBAR,
-            commodity: commodity,
-            country: country,
-            documentHashes: documentHashes,
-            isListed: false,
-            createdAt: block.timestamp,
-            maturityDate: block.timestamp + (tenorDays * 1 days)
-        });
-        
-        exporters[newTokenId] = exporter;
-        
-        emit InvoiceCreated(newTokenId, exporter, amountUSD, commodity, country);
-        
-        return newTokenId;
+    uint256 public nextInvoiceId = 1;
+    uint256 public nextBondId = 1;
+    uint256 public platformFeeBPS = 75; // 0.75%
+    address public platformWallet;
+
+    event InvoiceListed(uint256 indexed invoiceId, address indexed creditor, uint256 amount, uint256 dueDate);
+    event BondPosted(uint256 indexed bondId, uint256 indexed invoiceId, address indexed investor, uint256 amount);
+    event InvoicePaid(uint256 indexed invoiceId, address indexed debtor, uint256 amount);
+    event InvoiceDefaulted(uint256 indexed invoiceId, address indexed investor, uint256 amount);
+    event PlatformFeeUpdated(uint256 newFeeBPS);
+
+    constructor(address _platformWallet) ERC20("CashHash Invoice Token", "CHIT") {
+        platformWallet = _platformWallet;
     }
-    
-    function mintFractionalToken(
-        uint256 invoiceId,
-        address tokenAddress,
-        uint256 totalSupply,
-        uint256 unitPrice
-    ) external {
-        require(ownerOf(invoiceId) == msg.sender, "Not invoice owner");
-        require(fractionalTokens[invoiceId].tokenAddress == address(0), "FT already minted");
+
+    function listInvoice(
+        uint256 amount,
+        uint256 dueDate,
+        address debtor,
+        string memory documentHash
+    ) external returns (uint256) {
+        require(amount > 0, "Amount must be positive");
+        require(dueDate > block.timestamp, "Due date must be in future");
+        require(debtor != address(0), "Invalid debtor address");
+
+        uint256 invoiceId = nextInvoiceId++;
+        uint256 fee = (amount * platformFeeBPS) / 10000;
+
+        invoices[invoiceId] = Invoice({
+            amount: amount,
+            dueDate: dueDate,
+            debtor: debtor,
+            creditor: msg.sender,
+            isPaid: false,
+            isDefaulted: false,
+            documentHash: documentHash,
+            platformFee: fee
+        });
+
+        userInvoices[msg.sender].push(invoiceId);
         
-        fractionalTokens[invoiceId] = FractionalToken({
-            tokenAddress: tokenAddress,
-            totalSupply: totalSupply,
-            unitPrice: unitPrice,
-            fundedAmount: 0,
+        _mint(address(this), amount);
+        
+        emit InvoiceListed(invoiceId, msg.sender, amount, dueDate);
+        return invoiceId;
+    }
+
+    function postBond(uint256 invoiceId, uint256 amount) external nonReentrant returns (uint256) {
+        Invoice storage invoice = invoices[invoiceId];
+        require(invoice.amount > 0, "Invoice does not exist");
+        require(!invoice.isPaid, "Invoice already paid");
+        require(!invoice.isDefaulted, "Invoice defaulted");
+        require(amount <= invoice.amount, "Bond amount exceeds invoice");
+
+        uint256 bondId = nextBondId++;
+        
+        bonds[bondId] = Bond({
+            invoiceId: invoiceId,
+            investor: msg.sender,
+            amount: amount,
+            postedDate: block.timestamp,
             isActive: true
         });
+
+        userBonds[msg.sender].push(bondId);
         
-        emit FractionalTokenMinted(invoiceId, tokenAddress, totalSupply, unitPrice);
-    }
-    
-    function setTerms(
-        uint256 tokenId,
-        uint256 yieldBps,
-        uint256 bondHBAR
-    ) external {
-        require(ownerOf(tokenId) == msg.sender, "Not invoice owner");
-        require(!invoiceTerms[tokenId].isListed, "Already listed");
+        _transfer(address(this), msg.sender, amount);
         
-        invoiceTerms[tokenId].yieldBps = yieldBps;
-        invoiceTerms[tokenId].bondHBAR = bondHBAR;
+        emit BondPosted(bondId, invoiceId, msg.sender, amount);
+        return bondId;
+    }
+
+    function payInvoice(uint256 invoiceId) external payable nonReentrant {
+        Invoice storage invoice = invoices[invoiceId];
+        require(invoice.amount > 0, "Invoice does not exist");
+        require(msg.sender == invoice.debtor, "Only debtor can pay");
+        require(!invoice.isPaid, "Invoice already paid");
+        require(!invoice.isDefaulted, "Invoice defaulted");
+
+        invoice.isPaid = true;
         
-        emit TermsUpdated(tokenId, yieldBps, bondHBAR);
-    }
-    
-    function addDocument(
-        uint256 tokenId,
-        string memory documentHash
-    ) external {
-        require(ownerOf(tokenId) == msg.sender, "Not invoice owner");
+        uint256 platformAmount = invoice.platformFee;
+        uint256 creditorAmount = invoice.amount - platformAmount;
         
-        invoiceTerms[tokenId].documentHashes.push(documentHash);
+        // Transfer to creditor
+        _transfer(address(this), invoice.creditor, creditorAmount);
         
-        emit DocumentAdded(tokenId, documentHash);
-    }
-    
-    function enableListing(uint256 tokenId) external {
-        require(ownerOf(tokenId) == msg.sender, "Not invoice owner");
-        require(!invoiceTerms[tokenId].isListed, "Already listed");
-        require(fractionalTokens[tokenId].tokenAddress != address(0), "FT not minted");
+        // Transfer platform fee
+        _transfer(address(this), platformWallet, platformAmount);
         
-        invoiceTerms[tokenId].isListed = true;
+        emit InvoicePaid(invoiceId, msg.sender, invoice.amount);
+    }
+
+    function markDefaulted(uint256 invoiceId) external {
+        Invoice storage invoice = invoices[invoiceId];
+        require(invoice.amount > 0, "Invoice does not exist");
+        require(!invoice.isPaid, "Invoice already paid");
+        require(!invoice.isDefaulted, "Invoice already defaulted");
+        require(block.timestamp > invoice.dueDate, "Invoice not yet due");
+
+        invoice.isDefaulted = true;
         
-        emit ListingEnabled(tokenId, block.timestamp);
+        emit InvoiceDefaulted(invoiceId, address(0), invoice.amount);
     }
-    
-    function updateFundedAmount(
-        uint256 invoiceId,
-        uint256 newFundedAmount
-    ) external onlyOwner {
-        require(fractionalTokens[invoiceId].isActive, "FT not active");
-        fractionalTokens[invoiceId].fundedAmount = newFundedAmount;
+
+    function getUserInvoices(address user) external view returns (uint256[] memory) {
+        return userInvoices[user];
     }
-    
-    function getInvoiceTerms(uint256 tokenId) external view returns (InvoiceTerms memory) {
-        return invoiceTerms[tokenId];
+
+    function getUserBonds(address user) external view returns (uint256[] memory) {
+        return userBonds[user];
     }
-    
-    function getFractionalToken(uint256 invoiceId) external view returns (FractionalToken memory) {
-        return fractionalTokens[invoiceId];
+
+    function getInvoice(uint256 invoiceId) external view returns (Invoice memory) {
+        return invoices[invoiceId];
     }
-    
-    function getDocuments(uint256 tokenId) external view returns (string[] memory) {
-        return invoiceTerms[tokenId].documentHashes;
+
+    function getBond(uint256 bondId) external view returns (Bond memory) {
+        return bonds[bondId];
     }
-    
-    function isMatured(uint256 tokenId) external view returns (bool) {
-        return block.timestamp >= invoiceTerms[tokenId].maturityDate;
+
+    function updatePlatformFee(uint256 newFeeBPS) external onlyOwner {
+        require(newFeeBPS <= 1000, "Fee too high"); // Max 10%
+        platformFeeBPS = newFeeBPS;
+        emit PlatformFeeUpdated(newFeeBPS);
     }
-}
+
+    function updatePlatformWallet(address newWallet) external onlyOwner {
+        require(newWallet != address(0), "Invalid address");
+        platformWallet = newWallet;
+    }
