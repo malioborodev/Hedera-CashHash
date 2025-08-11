@@ -23,13 +23,6 @@
   --radius: 0.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
 /* Light theme only - dark mode removed */
 body {
   background-color: #ffffff;
