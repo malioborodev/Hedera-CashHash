@@ -4,19 +4,7 @@ import { useWallet } from "../wallet/WalletProvider";
 import { NETWORK } from "../lib/config";
 
 export function Navbar() {
-  const { accountId, connect } = useWallet();
-  const disabled = !accountId;
-
-  const Tab = ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <Link
-      href={disabled ? "#" : href}
-      aria-disabled={disabled}
-      className={`text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
-      prefetch={false}
-    >
-      {children}
-    </Link>
-  );
+  const { accountId, connect, connectQR, configError, isConnecting } = useWallet();
 
   return (
     <nav className="w-full sticky top-0 z-40 border-b border-white/10 bg-black/60 backdrop-blur">
@@ -25,15 +13,44 @@ export function Navbar() {
         
         <div className="flex items-center gap-4 text-sm">
           <Link href="/" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Landing</Link>
-          {/* Dashboard tabs */}
-          <Tab href="/marketplace">Market</Tab>
-          <Tab href="/create-invoice">Create</Tab>
-          <Tab href="/portfolio">Portfolio</Tab>
-          <Tab href="/events">Events</Tab>
+          {accountId && (
+            <Link href="/dashboard" className="text-white/90 hover:text-white hover:underline underline-offset-4 decoration-white/40 transition-colors">Dashboard</Link>
+          )}
           {/* Network badge */}
           <NetworkBadge />
           {!accountId ? (
-            <button onClick={connect} className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors">Connect Wallet</button>
+            <div className="flex flex-col items-end gap-1">
+              {configError ? (
+                 <div className="flex items-center gap-2">
+                   <span className="text-red-400 text-xs">{configError}</span>
+                   <button onClick={connect} className="px-3 py-1.5 rounded bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 text-sm text-red-300">
+                     Retry
+                   </button>
+                 </div>
+               ) : isConnecting ? (
+                 <div className="flex flex-col items-end gap-1">
+                   <span className="text-blue-400 text-xs">Scan QR code with HashPack mobile app or use HashPack browser extension</span>
+                   <button className="px-3 py-1.5 rounded bg-blue-500/20 border border-blue-500/30 text-sm text-blue-300" disabled>
+                     Connecting...
+                   </button>
+                 </div>
+               ) : (
+                 <div className="flex gap-2">
+                   <button 
+                     onClick={connect} 
+                     className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors text-sm"
+                   >
+                     Extension
+                   </button>
+                   <button 
+                     onClick={connectQR} 
+                     className="px-3 py-1.5 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors text-sm"
+                   >
+                     QR Code
+                   </button>
+                 </div>
+               )}
+            </div>
           ) : (
             <div className="text-xs px-2 py-1 rounded bg-white/10 text-white/80">{accountId}</div>
           )}

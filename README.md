@@ -1,6 +1,26 @@
 # Hedera CashHash
 
-Receivable financing on Hedera - A decentralized platform for invoice factoring and financing.
+A decentralized receivable financing platform built on Hedera Hashgraph.
+
+## Setup
+
+### Environment Configuration
+
+1. Copy the environment template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Configure your environment variables:
+   - **WalletConnect Project ID**: Get from [WalletConnect Cloud](https://cloud.walletconnect.com/)
+   - **Hedera Credentials**: Get testnet account from [Hedera Portal](https://portal.hedera.com/register)
+
+3. Update `.env` with your actual values:
+   ```env
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_actual_project_id
+   HEDERA_OPERATOR_ID=your_hedera_account_id
+   HEDERA_OPERATOR_KEY=your_hedera_private_key
+   ```
 
 ## 🚀 Quick Start
 
