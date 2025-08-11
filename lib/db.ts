@@ -36,7 +36,6 @@ const invoiceDb = {
       id,
       sellerId: data.sellerId || '',
       buyerId: data.buyerId,
-      attesterId: data.attesterId,
       amount: data.amount || 0,
       currency: data.currency || 'USD',
       yieldBps: data.yieldBps,

@@ -2,7 +2,6 @@ export interface Invoice {
   id: string;
   sellerId: string; // was issuerId
   buyerId?: string;
-  attesterId?: string;
   amount: number;
   currency: string;
   yieldBps?: number;
@@ -53,8 +52,6 @@ export enum EventType {
   INVOICE_CANCELLED = 'INVOICE_CANCELLED',
   INVESTMENT_MADE = 'INVESTMENT_MADE',
   INVOICE_FUNDED = 'INVOICE_FUNDED',
-  BUYER_ACK = 'BUYER_ACK',
-  ATTESTER_SIGN = 'ATTESTER_SIGN',
   INVOICE_PAID = 'INVOICE_PAID',
   INVOICE_DEFAULTED = 'INVOICE_DEFAULTED',
   FILE_UPLOADED = 'FILE_UPLOADED'
