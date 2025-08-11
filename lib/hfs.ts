@@ -8,11 +8,14 @@ import {
   PrivateKey,
   AccountId
 } from "@hashgraph/sdk";
-import { env } from "./config/env";
+import { env } from "../config/env.ts";
 import { hcsService } from "./hcs";
 
 const client = Client.forTestnet();
-client.setOperator(env.HEDERA_ACCOUNT_ID, env.HEDERA_PRIVATE_KEY);
+
+if (!env.DEMO_MODE && env.HEDERA_OPERATOR_ID && env.HEDERA_OPERATOR_KEY) {
+  client.setOperator(env.HEDERA_OPERATOR_ID, env.HEDERA_OPERATOR_KEY);
+}
 
 export interface DocumentMetadata {
   invoiceId: string;
@@ -34,7 +37,7 @@ export class HFSService {
     const checksum = this.calculateChecksum(fileBuffer);
     
     const fileCreateTx = new FileCreateTransaction()
-      .setKeys([PrivateKey.fromString(env.HEDERA_PRIVATE_KEY)])
+      .setKeys([PrivateKey.fromString(env.HEDERA_OPERATOR_KEY)])
       .setContents(fileBuffer.slice(0, 4096))
       .setMaxTransactionFee(new Hbar(2));
 

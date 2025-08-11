@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { Client, ContractExecuteTransaction, ContractId, Hbar, AccountId, PrivateKey, ContractFunctionParameters } from '@hashgraph/sdk';
 import { hcsService } from './hcs.ts';
 import { HederaOps } from './hedera.ts';
-import { env } from './config/env.ts';
+import { env } from '../config/env.ts';
 
 export interface CrossChainTransaction {
   id: string;
@@ -40,11 +40,11 @@ export class HederaRelayService {
 
   constructor() {
     // Only initialize if not in demo mode and credentials available
-    if (!env.DEMO_MODE && env.HEDERA_ACCOUNT_ID && env.HEDERA_PRIVATE_KEY) {
+    if (!env.DEMO_MODE && env.HEDERA_OPERATOR_ID && env.HEDERA_OPERATOR_KEY) {
       this.hederaClient = Client.forTestnet()
         .setOperator(
-          AccountId.fromString(env.HEDERA_ACCOUNT_ID),
-          PrivateKey.fromString(env.HEDERA_PRIVATE_KEY)
+          AccountId.fromString(env.HEDERA_OPERATOR_ID),
+          PrivateKey.fromString(env.HEDERA_OPERATOR_KEY)
         );
       this.initializeProviders();
     } else {

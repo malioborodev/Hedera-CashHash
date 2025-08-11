@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Calendar, Clock, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Calendar, Clock, Award, ExternalLink, Coins } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
 
 interface Investment {
   id: string;
@@ -19,6 +20,19 @@ interface Investment {
   maturityDate: string;
   expectedReturn: number;
   actualReturn: number;
+  // Hedera-specific fields
+  tokenId?: string;
+  blockchainTxHash?: string;
+  tokenTxHash?: string;
+  payoutTxHash?: string;
+  htsFees?: {
+    tokenCreation?: number;
+    tokenMint?: number;
+    tokenTransfer?: number;
+    tokenBurn?: number;
+  };
+  hcsTopicId?: string;
+  mirrorNodeUrl?: string;
 }
 
 interface PortfolioStats {
@@ -27,6 +41,11 @@ interface PortfolioStats {
   activeInvestments: number;
   averageYield: number;
   pendingPayouts: number;
+  // Hedera-specific metrics
+  totalHtsFees: number;
+  totalHcsEvents: number;
+  uniqueTokens: number;
+  mirrorNodeTransactions: number;
 }
 
 export function PortfolioView() {
@@ -77,12 +96,27 @@ export function PortfolioView() {
       : 0;
     const pendingPayouts = investments.filter(inv => inv.status === 'FUNDED').length;
 
+    // Calculate Hedera-specific metrics
+    const totalHtsFees = investments.reduce((sum, inv) => {
+      if (!inv.htsFees) return sum;
+      return sum + (inv.htsFees.tokenCreation || 0) + (inv.htsFees.tokenMint || 0) + 
+             (inv.htsFees.tokenTransfer || 0) + (inv.htsFees.tokenBurn || 0);
+    }, 0);
+    
+    const uniqueTokens = new Set(investments.map(inv => inv.tokenId).filter(Boolean)).size;
+    const totalHcsEvents = investments.length * 3; // Estimate: create, fund, payout events
+    const mirrorNodeTransactions = investments.filter(inv => inv.blockchainTxHash).length;
+
     return {
       totalInvested,
       totalReturns,
       activeInvestments,
       averageYield,
-      pendingPayouts
+      pendingPayouts,
+      totalHtsFees,
+      totalHcsEvents,
+      uniqueTokens,
+      mirrorNodeTransactions
     };
   };
 
@@ -95,6 +129,22 @@ export function PortfolioView() {
 
   const formatPercent = (value: number) => {
     return `${value.toFixed(2)}%`;
+  };
+
+  const formatHbar = (amount: number) => {
+    return `${amount.toFixed(8)} ℏ`;
+  };
+
+  const getMirrorNodeUrl = (txHash: string) => {
+    return `https://hashscan.io/testnet/transaction/${txHash}`;
+  };
+
+  const getTokenUrl = (tokenId: string) => {
+    return `https://hashscan.io/testnet/token/${tokenId}`;
+  };
+
+  const getTopicUrl = (topicId: string) => {
+    return `https://hashscan.io/testnet/topic/${topicId}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -224,6 +274,37 @@ export function PortfolioView() {
         </Card>
       </div>
 
+      {/* Hedera Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Coins className="h-5 w-5" />
+            Hedera Network Metrics
+          </CardTitle>
+          <CardDescription>Your activity on the Hedera network</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{formatHbar(stats.totalHtsFees)}</div>
+              <p className="text-sm text-muted-foreground">Total HTS Fees</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{stats.totalHcsEvents}</div>
+              <p className="text-sm text-muted-foreground">HCS Events</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{stats.uniqueTokens}</div>
+              <p className="text-sm text-muted-foreground">Unique Tokens</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{stats.mirrorNodeTransactions}</div>
+              <p className="text-sm text-muted-foreground">Mirror Transactions</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -288,27 +369,74 @@ export function PortfolioView() {
         <CardContent>
           <div className="space-y-4">
             {investments.filter(inv => inv.status === 'FUNDED').map((investment) => (
-              <div key={investment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <h4 className="font-medium">{investment.invoiceId}</h4>
-                    <Badge className={getStatusColor(investment.status)}>
-                      {investment.status}
-                    </Badge>
+              <div key={investment.id} className="p-4 border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-medium">{investment.invoiceId}</h4>
+                      <Badge className={getStatusColor(investment.status)}>
+                        {investment.status}
+                      </Badge>
+                      {investment.tokenId && (
+                        <Badge variant="outline" className="text-purple-600">
+                          Token: {investment.tokenId}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Invested: {formatCurrency(investment.amount)} • 
+                      Yield: {formatPercent(investment.yieldBPS / 100)}
+                      {investment.htsFees && (
+                        <span className="ml-2">• HTS Fees: {formatHbar(Object.values(investment.htsFees).reduce((a, b) => a + (b || 0), 0))}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Invested: {formatCurrency(investment.amount)} • 
-                    Yield: {formatPercent(investment.yieldBPS / 100)}
+
+                  <div className="text-right">
+                    <div className="text-sm font-medium">
+                      {calculateDaysRemaining(investment.maturityDate)} days left
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Expected: {formatCurrency(investment.expectedReturn)}
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className="text-sm font-medium">
-                    {calculateDaysRemaining(investment.maturityDate)} days left
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Expected: {formatCurrency(investment.expectedReturn)}
-                  </div>
+                {/* Hedera Links */}
+                <div className="flex flex-wrap gap-2">
+                  {investment.blockchainTxHash && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getMirrorNodeUrl(investment.blockchainTxHash!), '_blank')}
+                      className="text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View on Mirror
+                    </Button>
+                  )}
+                  {investment.tokenId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getTokenUrl(investment.tokenId!), '_blank')}
+                      className="text-xs"
+                    >
+                      <Coins className="h-3 w-3 mr-1" />
+                      Token Details
+                    </Button>
+                  )}
+                  {investment.hcsTopicId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getTopicUrl(investment.hcsTopicId!), '_blank')}
+                      className="text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      HCS Topic
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -319,6 +447,111 @@ export function PortfolioView() {
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No active investments</h3>
                 <p className="mt-1 text-sm text-gray-500">
                   Start investing in bonds to see them here.
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Completed Investments */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Completed Investments</CardTitle>
+          <CardDescription>Your investment history</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {investments.filter(inv => inv.status === 'PAID').map((investment) => (
+              <div key={investment.id} className="p-4 border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-medium">{investment.invoiceId}</h4>
+                      <Badge className={getStatusColor(investment.status)}>
+                        {investment.status}
+                      </Badge>
+                      {investment.tokenId && (
+                        <Badge variant="outline" className="text-purple-600">
+                          Token: {investment.tokenId}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Invested: {formatCurrency(investment.amount)} • 
+                      Returned: {formatCurrency(investment.actualReturn || investment.expectedReturn)}
+                      {investment.htsFees && (
+                        <span className="ml-2">• Total HTS Fees: {formatHbar(Object.values(investment.htsFees).reduce((a, b) => a + (b || 0), 0))}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-green-600">
+                      +{formatPercent(((investment.actualReturn || investment.expectedReturn) - investment.amount) / investment.amount * 100)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Completed {new Date(investment.maturityDate).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Transaction History Links */}
+                <div className="flex flex-wrap gap-2">
+                  {investment.blockchainTxHash && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getMirrorNodeUrl(investment.blockchainTxHash!), '_blank')}
+                      className="text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Initial Tx
+                    </Button>
+                  )}
+                  {investment.payoutTxHash && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getMirrorNodeUrl(investment.payoutTxHash!), '_blank')}
+                      className="text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Payout Tx
+                    </Button>
+                  )}
+                  {investment.tokenId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getTokenUrl(investment.tokenId!), '_blank')}
+                      className="text-xs"
+                    >
+                      <Coins className="h-3 w-3 mr-1" />
+                      Token Details
+                    </Button>
+                  )}
+                  {investment.hcsTopicId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getTopicUrl(investment.hcsTopicId!), '_blank')}
+                      className="text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      HCS Events
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {investments.filter(inv => inv.status === 'PAID').length === 0 && (
+              <div className="text-center py-8">
+                <Award className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No completed investments</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Completed investments will appear here.
                 </p>
               </div>
             )}

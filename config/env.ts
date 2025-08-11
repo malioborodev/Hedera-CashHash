@@ -15,6 +15,13 @@ export const env = {
   HEDERA_NETWORK: process.env.HEDERA_NETWORK || 'testnet',
   HEDERA_OPERATOR_ID: process.env.HEDERA_OPERATOR_ID,
   HEDERA_OPERATOR_KEY: process.env.HEDERA_OPERATOR_KEY,
+  
+  // HCS (Hedera Consensus Service)
+  HCS_TOPIC_ID: process.env.HCS_TOPIC_ID || 'demo-topic-id',
+  MIRROR_BASE: process.env.MIRROR_BASE || 'https://testnet.mirrornode.hedera.com',
+  
+  // Platform Configuration
+  PLATFORM_FEE_BPS: parseInt(process.env.PLATFORM_FEE_BPS || '250'), // 2.5%
 } as const;
 
 // Validate required env vars in production or when demo mode disabled

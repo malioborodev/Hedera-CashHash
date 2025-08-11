@@ -12,11 +12,15 @@ import {
   AccountBalanceQuery,
   TokenInfoQuery
 } from "@hashgraph/sdk";
-import { env } from "./config/env";
+import { env } from "../config/env.ts";
 import { hcsService } from "./hcs";
 
 const client = Client.forTestnet();
-client.setOperator(env.HEDERA_ACCOUNT_ID, env.HEDERA_PRIVATE_KEY);
+
+// Only set operator in production mode
+if (!env.DEMO_MODE && env.HEDERA_OPERATOR_ID && env.HEDERA_OPERATOR_KEY) {
+  client.setOperator(env.HEDERA_OPERATOR_ID, env.HEDERA_OPERATOR_KEY);
+}
 
 export interface InvoiceToken {
   tokenId: string;
@@ -36,27 +40,160 @@ export interface PlatformFeeToken {
 }
 
 export class HTSService {
-  async createInvoiceToken(
-    invoiceId: string,
-    amount: number,
-    dueDate: Date,
-    debtor: string
-  ): Promise<string> {
-    const tokenName = `Invoice-${invoiceId}`;
-    const tokenSymbol = `INV-${invoiceId.slice(0, 8)}`;
+  // Demo mode storage for non-Hedera simulation
+  private static demoTokens = new Map<string, any>();
+  private static demoNFTs = new Map<string, any>();
+
+  async createNFT(params: {
+    name: string;
+    symbol: string;
+    description: string;
+    metadata: any;
+  }): Promise<{ tokenId: string }> {
+    if (env.DEMO_MODE) {
+      const tokenId = `NFT-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+      HTSService.demoNFTs.set(tokenId, {
+        ...params,
+        tokenId,
+        createdAt: new Date().toISOString()
+      });
+      return { tokenId };
+    }
+
+    const transaction = new TokenCreateTransaction()
+      .setTokenName(params.name)
+      .setTokenSymbol(params.symbol)
+      .setTokenType(TokenType.NonFungibleUnique)
+      .setTreasuryAccountId(AccountId.fromString(env.HEDERA_OPERATOR_ID))
+      .setAdminKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setSupplyKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setTokenMemo(params.description)
+      .setSupplyType(TokenSupplyType.Finite)
+      .setMaxSupply(1);
+
+    const response = await transaction.execute(client);
+    const receipt = await response.getReceipt(client);
+    
+    const tokenId = receipt.tokenId?.toString();
+    if (!tokenId) {
+      throw new Error('Failed to create NFT');
+    }
+
+    return { tokenId };
+  }
+
+  async createFungibleToken(params: {
+    name: string;
+    symbol: string;
+    decimals: number;
+    initialSupply: number;
+    treasuryAccount: string;
+    metadata: any;
+  }): Promise<{ tokenId: string }> {
+    if (env.DEMO_MODE) {
+      const tokenId = `FT-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+      HTSService.demoTokens.set(tokenId, {
+        ...params,
+        tokenId,
+        createdAt: new Date().toISOString()
+      });
+      return { tokenId };
+    }
+
+    const transaction = new TokenCreateTransaction()
+      .setTokenName(params.name)
+      .setTokenSymbol(params.symbol)
+      .setTokenType(TokenType.FungibleCommon)
+      .setDecimals(params.decimals)
+      .setInitialSupply(params.initialSupply)
+      .setTreasuryAccountId(AccountId.fromString(params.treasuryAccount))
+      .setAdminKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setSupplyKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setSupplyType(TokenSupplyType.Finite)
+      .setMaxSupply(params.initialSupply * 10);
+
+    const response = await transaction.execute(client);
+    const receipt = await response.getReceipt(client);
+    
+    const tokenId = receipt.tokenId?.toString();
+    if (!tokenId) {
+      throw new Error('Failed to create fungible token');
+    }
+
+    return { tokenId };
+  }
+
+  async transferHBAR(params: {
+    from: string;
+    to: string;
+    amount: number;
+  }): Promise<{ txHash: string }> {
+    if (env.DEMO_MODE) {
+      const txHash = `demo-hbar-tx-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+      return { txHash };
+    }
+
+    const transaction = new TransferTransaction()
+      .addHbarTransfer(AccountId.fromString(params.from), new Hbar(-params.amount))
+      .addHbarTransfer(AccountId.fromString(params.to), new Hbar(params.amount));
+
+    const response = await transaction.execute(client);
+    const receipt = await response.getReceipt(client);
+    
+    return { txHash: receipt.transactionId.toString() };
+  }
+
+  async transferTokens(params: {
+    tokenId: string;
+    from: string;
+    to: string;
+    amount: number;
+  }): Promise<string> {
+    if (env.DEMO_MODE) {
+      return `demo-token-tx-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    }
+
+    const transaction = new TransferTransaction()
+      .addTokenTransfer(TokenId.fromString(params.tokenId), AccountId.fromString(params.from), -params.amount)
+      .addTokenTransfer(TokenId.fromString(params.tokenId), AccountId.fromString(params.to), params.amount);
+
+    const response = await transaction.execute(client);
+    const receipt = await response.getReceipt(client);
+    
+    return receipt.transactionId.toString();
+  }
+
+  async createInvoiceToken(params: {
+    invoiceId: string;
+    amount: number;
+    exporter: string;
+    metadata: any;
+  }): Promise<string> {
+    if (env.DEMO_MODE) {
+      const tokenId = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+      HTSService.demoTokens.set(tokenId, {
+        ...params,
+        tokenId,
+        createdAt: new Date().toISOString()
+      });
+      return tokenId;
+    }
+
+    const tokenName = `Invoice-${params.invoiceId}`;
+    const tokenSymbol = `INV-${params.invoiceId.slice(0, 8)}`;
 
     const transaction = new TokenCreateTransaction()
       .setTokenName(tokenName)
       .setTokenSymbol(tokenSymbol)
       .setTokenType(TokenType.FungibleCommon)
       .setDecimals(0)
-      .setInitialSupply(amount)
-      .setTreasuryAccountId(AccountId.fromString(env.HEDERA_ACCOUNT_ID))
-      .setAdminKey(PrivateKey.fromString(env.HEDERA_PRIVATE_KEY))
-      .setSupplyKey(PrivateKey.fromString(env.HEDERA_PRIVATE_KEY))
-      .setWipeKey(PrivateKey.fromString(env.HEDERA_PRIVATE_KEY))
+      .setInitialSupply(params.amount)
+      .setTreasuryAccountId(AccountId.fromString(params.exporter))
+      .setAdminKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setSupplyKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setWipeKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
       .setSupplyType(TokenSupplyType.Finite)
-      .setMaxSupply(amount);
+      .setMaxSupply(params.amount);
 
     const response = await transaction.execute(client);
     const receipt = await response.getReceipt(client);
@@ -67,11 +204,11 @@ export class HTSService {
       throw new Error('Failed to create invoice token');
     }
 
-    await hcsService.publishListedEvent(invoiceId, {
+    await hcsService.publishListedEvent(params.invoiceId, {
       tokenId,
-      amount,
-      dueDate: dueDate.toISOString(),
-      debtor
+      amount: params.amount,
+      exporter: params.exporter,
+      metadata: params.metadata
     });
 
     return tokenId;
@@ -84,9 +221,9 @@ export class HTSService {
       .setTokenType(TokenType.FungibleCommon)
       .setDecimals(2)
       .setInitialSupply(1000000)
-      .setTreasuryAccountId(AccountId.fromString(env.HEDERA_ACCOUNT_ID))
-      .setAdminKey(PrivateKey.fromString(env.HEDERA_PRIVATE_KEY))
-      .setSupplyKey(PrivateKey.fromString(env.HEDERA_PRIVATE_KEY))
+      .setTreasuryAccountId(AccountId.fromString(env.HEDERA_OPERATOR_ID))
+      .setAdminKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
+      .setSupplyKey(PrivateKey.fromString(env.HEDERA_OPERATOR_KEY))
       .setSupplyType(TokenSupplyType.Finite)
       .setMaxSupply(1000000);
 
@@ -97,6 +234,10 @@ export class HTSService {
   }
 
   async associateToken(accountId: string, tokenId: string): Promise<void> {
+    if (env.DEMO_MODE) {
+      // No-op in demo mode
+      return;
+    }
     const transaction = new TokenAssociateTransaction()
       .setAccountId(AccountId.fromString(accountId))
       .setTokenIds([TokenId.fromString(tokenId)]);
@@ -110,6 +251,9 @@ export class HTSService {
     toAccount: string,
     amount: number
   ): Promise<string> {
+    if (env.DEMO_MODE) {
+      return `demo-transfer-tx-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    }
     const transaction = new TransferTransaction()
       .addTokenTransfer(TokenId.fromString(tokenId), AccountId.fromString(fromAccount), -amount)
       .addTokenTransfer(TokenId.fromString(tokenId), AccountId.fromString(toAccount), amount);
@@ -121,6 +265,10 @@ export class HTSService {
   }
 
   async getTokenBalance(accountId: string, tokenId: string): Promise<number> {
+    if (env.DEMO_MODE) {
+      // Return demo balance
+      return 1000;
+    }
     const balance = await new AccountBalanceQuery()
       .setAccountId(AccountId.fromString(accountId))
       .execute(client);
@@ -129,6 +277,16 @@ export class HTSService {
   }
 
   async getTokenInfo(tokenId: string): Promise<any> {
+    if (env.DEMO_MODE) {
+      // Return demo token info
+      return {
+        name: 'Demo Token',
+        symbol: 'DEMO',
+        decimals: 2,
+        totalSupply: 1000000,
+        treasuryAccountId: '0.0.123456'
+      };
+    }
     const info = await new TokenInfoQuery()
       .setTokenId(TokenId.fromString(tokenId))
       .execute(client);
@@ -152,6 +310,9 @@ export class HTSService {
     platformAccount: string,
     totalAmount: number
   ): Promise<string> {
+    if (env.DEMO_MODE) {
+      return `demo-fee-distribution-tx-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    }
     const platformFee = await this.calculatePlatformFee(totalAmount);
     const investorAmount = totalAmount - platformFee;
 

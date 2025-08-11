@@ -16,7 +16,7 @@ export default function LandingPage() {
               <span className="text-slate-900 font-bold text-xl">CashHash</span>
             </div>
             <Link
-              href="/dashboard"
+              href="/market"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
             >
               Launch App
@@ -40,7 +40,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/dashboard"
+              href="/market"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors"
             >
               Get Started

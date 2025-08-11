@@ -1,0 +1,31 @@
+{
+  "network": "hedera-testnet",
+  "contracts": {
+    "CashHashInvoice": {
+      "address": "",
+      "deployedAt": "",
+      "txHash": ""
+    },
+    "CashHashBondEscrow": {
+      "address": "",
+      "deployedAt": "",
+      "txHash": ""
+    },
+    "CashHashPayout": {
+      "address": "",
+      "deployedAt": "",
+      "txHash": ""
+    }
+  },
+  "tokens": {
+    "HBAR": "0.0.0",
+    "USDC": "",
+    "invoiceNFT": "",
+    "bondToken": ""
+  },
+  "services": {
+    "hts": "0.0.167",
+    "hfs": "0.0.150",
+    "hcs": "0.0.149"
+  }
+}

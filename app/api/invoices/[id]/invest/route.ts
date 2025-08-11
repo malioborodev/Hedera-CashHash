@@ -74,7 +74,7 @@ export async function POST(
       }
 
       // Transfer FT tokens
-      const transferResult = await htsService.transferTokens({
+      const transferTxHash = await htsService.transferTokens({
         tokenId: invoice.ftId,
         from: process.env.PLATFORM_ACCOUNT_ID!,
         to: investorAddress,
@@ -93,7 +93,7 @@ export async function POST(
           investorAddress,
           amount: actualInvestment,
           fundedPercent,
-          txHash: transferResult.txHash,
+          txHash: transferTxHash,
           timestamp: new Date().toISOString()
         }
       });
@@ -107,7 +107,7 @@ export async function POST(
           estimatedReturn: (actualInvestment * yieldPercent / 100) * (tenorDays / 365),
           htsFeePlatform,
           htsFeeHBAR,
-          txHash: transferResult.txHash,
+          txHash: transferTxHash,
           fundedPercent
         },
         eventId: investedEvent.id
