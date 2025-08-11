@@ -233,17 +233,24 @@ const initializeServices = async () => {
 };
 
 // Graceful shutdown
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = async (signal) => {
   console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
   
-  server.close(() => {
+  server.close(async () => {
     console.log('HTTP server closed');
     
-    // Close database connections, Redis, etc.
-    // TODO: Add cleanup for database and other services
-    
-    console.log('Graceful shutdown completed');
-    process.exit(0);
+    try {
+      // Close database connections
+      const database = require('./config/database');
+      await database.closeConnection();
+      console.log('Database connections closed');
+      
+      console.log('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      console.error('Error during graceful shutdown:', error);
+      process.exit(1);
+    }
   });
 
   // Force close after 30 seconds

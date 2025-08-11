@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import Navbar from './components/Layout/Navbar';
-import Sidebar from './components/Layout/Sidebar';
 import DashboardPage from './components/Dashboard/DashboardPage';
 import MarketPage from './components/Market/MarketPage';
 import PortfolioPage from './components/Portfolio/PortfolioPage';
 import InvoiceForm from './components/Invoice/InvoiceForm';
 import InvestmentForm from './components/Investment/InvestmentForm';
-import { Menu, X } from 'lucide-react';
 
 // Mock user data
 interface User {
@@ -62,23 +59,10 @@ const mockInvoice = {
 
 function App() {
   const [user, setUser] = useState<User | null>(mockUser);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [showInvestmentForm, setShowInvestmentForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(mockInvoice);
-
-  // Handle responsive sidebar
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(false);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const handleLogin = async (credentials: { email: string; password: string }) => {
     // Mock login - in real app, this would call authentication API
@@ -198,51 +182,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Top navbar */}
+      <Navbar 
+        user={user} 
+        onLogout={handleLogout}
+        onPageChange={setCurrentPage}
+        currentPage={currentPage}
+      />
 
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 lg:hidden">
-          <h1 className="text-xl font-bold text-gray-900">CashHash</h1>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-        <Sidebar 
-          currentPage={currentPage} 
-          onPageChange={(page) => {
-            setCurrentPage(page);
-            setSidebarOpen(false);
-          }}
-          user={user}
-        />
-      </div>
-
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top navbar */}
-        <Navbar 
-          user={user} 
-          onLogout={handleLogout}
-          onMenuClick={() => setSidebarOpen(true)}
-        />
-
-        {/* Page content */}
-        <main className="flex-1">
-          {renderPage()}
-        </main>
-      </div>
+      {/* Page content */}
+      <main className="flex-1">
+        {renderPage()}
+      </main>
 
       {/* Investment Form Modal */}
       {showInvestmentForm && (

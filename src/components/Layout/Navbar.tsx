@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, Search, User, LogOut, Settings, Menu, Wallet } from 'lucide-react';
+import { Bell, Search, LogOut, Wallet } from 'lucide-react';
 
 interface User {
   id: string;
@@ -14,10 +14,11 @@ interface User {
 interface NavbarProps {
   user: User;
   onLogout: () => void;
-  onMenuClick: () => void;
+  onPageChange: (page: string) => void;
+  currentPage: string;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onMenuClick }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onPageChange, currentPage }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,15 +77,54 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onMenuClick }) => {
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 px-4 py-3">
       <div className="flex items-center justify-between">
-        {/* Left side - Mobile menu button and search */}
+        {/* Left side - Navigation and search */}
         <div className="flex items-center space-x-4">
-          {/* Mobile menu button */}
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
+          {/* Navigation menu */}
+          <div className="flex items-center space-x-4">
+            <h1 className="text-xl font-bold text-gray-900">CashHash</h1>
+            <nav className="hidden md:flex space-x-4">
+              <button
+                onClick={() => onPageChange('dashboard')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  currentPage === 'dashboard'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => onPageChange('market')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  currentPage === 'market'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Market
+              </button>
+              <button
+                onClick={() => onPageChange('portfolio')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  currentPage === 'portfolio'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Portfolio
+              </button>
+              <button
+                onClick={() => onPageChange('create-invoice')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  currentPage === 'create-invoice'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Create Invoice
+              </button>
+            </nav>
+          </div>
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="hidden md:block">

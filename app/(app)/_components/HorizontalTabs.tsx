@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { TrendingUp, PlusCircle, Briefcase, Activity, HelpCircle, Users } from "lucide-react";
+import { TrendingUp, PlusCircle, Briefcase, Activity } from "lucide-react";
 
 interface Tab {
   id: string;
@@ -34,18 +34,7 @@ const tabs: Tab[] = [
     icon: <Activity className="w-4 h-4" />,
     description: 'View transaction history and updates'
   },
-  { 
-    id: 'community', 
-    label: 'Community', 
-    icon: <Users className="w-4 h-4" />,
-    description: 'Connect with other traders'
-  },
-  { 
-    id: 'help', 
-    label: 'Help', 
-    icon: <HelpCircle className="w-4 h-4" />,
-    description: 'FAQ and support resources'
-  }
+
 ];
 
 interface HorizontalTabsProps {

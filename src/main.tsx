@@ -73,13 +73,10 @@ root.render(
   </React.StrictMode>
 );
 
-// Hot module replacement for development
-if (import.meta.hot) {
-  import.meta.hot.accept();
-}
+
 
 // Service worker registration (optional)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
@@ -101,7 +98,7 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 // Performance monitoring (development only)
-if (import.meta.env.DEV) {
+if (process.env.NODE_ENV === 'development') {
   // Log performance metrics
   window.addEventListener('load', () => {
     setTimeout(() => {
